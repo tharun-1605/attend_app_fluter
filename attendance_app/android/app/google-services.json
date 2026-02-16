@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "571737423036",
+    "project_id": "attend-app-7acae",
+    "storage_bucket": "attend-app-7acae.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:571737423036:android:0fbd7ac46bd0e2dde1e4b9",
+        "android_client_info": {
+          "package_name": "attend_.app01"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBB5wRwUNXOO0adCdJlcX5jfySiEORbEIo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
