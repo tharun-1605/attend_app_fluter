@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../services/auth_service.dart';
@@ -21,6 +22,7 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> {
   CompanyModel? _company;
   bool _isLoading = true;
   Map<String, int>? _todayStats;
+  String? _loadError;
 
   @override
   void initState() {
@@ -33,30 +35,73 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         final userData = await _authService.getUserData(user.uid);
+        if (userData == null) {
+          if (!mounted) return;
+          setState(() {
+            _user = null;
+            _company = null;
+            _todayStats = null;
+            _loadError = 'User profile not found. Please register again.';
+            _isLoading = false;
+          });
+          return;
+        }
 
         CompanyModel? company;
-        if (userData?.companyId != null) {
-          company = await _firestoreService.getCompany(userData!.companyId!);
+        if (userData.companyId != null) {
+          company = await _firestoreService.getCompany(userData.companyId!);
         }
 
-        Map<String, int>? stats;
-        if (company != null) {
-          stats = await _firestoreService.getAttendanceStats(
-            company.id,
-            DateTime.now(),
-          );
-        }
-
+        if (!mounted) return;
         setState(() {
           _user = userData;
           _company = company;
-          _todayStats = stats;
+          _todayStats = null;
+          _loadError = null;
           _isLoading = false;
+        });
+
+        Map<String, int>? stats;
+        if (company != null) {
+          try {
+            stats = await _firestoreService.getAttendanceStats(
+              company.id,
+              DateTime.now(),
+            );
+          } on FirebaseException catch (e) {
+            if (mounted) {
+              final needsIndex = e.code == 'failed-precondition' &&
+                  (e.message ?? '').toLowerCase().contains('requires an index');
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    needsIndex
+                        ? 'Attendance stats need a Firestore index. Open Attendance Reports to generate/create the index link.'
+                        : 'Could not load stats: ${e.message ?? e.code}',
+                  ),
+                  backgroundColor: AppTheme.errorColor,
+                ),
+              );
+            }
+          }
+        }
+
+        if (!mounted) return;
+        setState(() {
+          _todayStats = stats;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+          _loadError = 'No logged in user.';
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
+        _loadError = 'Error loading dashboard: $e';
       });
     }
   }
@@ -91,7 +136,9 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _user == null
-          ? const Center(child: Text('Error loading user data'))
+          ? Center(
+              child: Text(_loadError ?? 'Error loading user data'),
+            )
           : RefreshIndicator(
               onRefresh: _loadData,
               child: SingleChildScrollView(

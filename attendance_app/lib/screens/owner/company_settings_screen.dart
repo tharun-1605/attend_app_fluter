@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../config/theme.dart';
@@ -15,6 +17,8 @@ class CompanySettingsScreen extends StatefulWidget {
 }
 
 class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
+  static const Duration _requestTimeout = Duration(seconds: 12);
+
   final _formKey = GlobalKey<FormState>();
   final _companyNameController = TextEditingController();
   final _addressController = TextEditingController();
@@ -48,11 +52,16 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         final userData = await _authService.getUserData(user.uid);
+        if (mounted) {
+          setState(() {
+            _user = userData;
+          });
+        }
 
         if (userData?.companyId != null) {
           final company = await _firestoreService.getCompany(
             userData!.companyId!,
-          );
+          ).timeout(_requestTimeout);
 
           if (company != null) {
             _companyNameController.text = company.name;
@@ -62,11 +71,34 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
             _endTimeController.text = company.workingEndTime ?? '18:00';
 
             setState(() {
-              _user = userData;
               _company = company;
             });
           }
         }
+      }
+    } on FirebaseException catch (e) {
+      if (mounted) {
+        final apiDisabled = e.code == 'permission-denied' &&
+            (e.message ?? '').toLowerCase().contains('firestore api');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              apiDisabled
+                  ? 'Cloud Firestore API is disabled for this project. Enable it in Google Cloud Console, then retry.'
+                  : 'Error loading company: ${e.message ?? e.code}',
+            ),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+    } on TimeoutException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Loading timed out. Please check internet and retry.'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -78,9 +110,11 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
         );
       }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -88,16 +122,22 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
     try {
       final locationInfo = await _locationService.getLocationInfo();
       if (locationInfo != null) {
+        final latitude = locationInfo['latitude'];
+        final longitude = locationInfo['longitude'];
+        if (latitude == null || longitude == null) {
+          throw StateError('Location data is incomplete.');
+        }
+
         setState(() {
-          _currentLatitude = locationInfo['latitude'];
-          _currentLongitude = locationInfo['longitude'];
+          _currentLatitude = latitude;
+          _currentLongitude = longitude;
         });
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Location: ${_currentLatitude!.toStringAsFixed(6)}, ${_currentLongitude!.toStringAsFixed(6)}',
+                'Location: ${latitude.toStringAsFixed(6)}, ${longitude.toStringAsFixed(6)}',
               ),
               backgroundColor: AppTheme.successColor,
             ),
@@ -126,7 +166,7 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
   }
 
   Future<void> _saveCompany() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
 
     if (_currentLatitude == null || _currentLongitude == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -138,11 +178,27 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
       return;
     }
 
+    // Check if user is logged in
+    if (_user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error: user profile not loaded. Please reopen screen.'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isSaving = true;
     });
 
     try {
+      final currentUser = _user;
+      if (currentUser == null) {
+        throw StateError('User profile missing while saving company.');
+      }
+
       if (_company != null) {
         // Update existing company
         final updatedCompany = _company!.copyWith(
@@ -155,13 +211,17 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
           workingEndTime: _endTimeController.text,
         );
 
-        await _firestoreService.updateCompany(updatedCompany);
+        await _firestoreService
+            .updateCompany(updatedCompany)
+            .timeout(_requestTimeout);
       } else {
-        // Create new company
+        // Create new company - use Firebase generated ID instead of relying on user's companyId
+        // This fixes the null check operator error when user doesn't have a companyId yet
+        final companyDocRef = _firestoreService.createCompanyDoc();
         final newCompany = CompanyModel(
-          id: _user!.companyId!,
+          id: companyDocRef.id,
           name: _companyNameController.text.trim(),
-          ownerId: _user!.id,
+          ownerId: currentUser.id,
           address: _addressController.text.trim(),
           latitude: _currentLatitude,
           longitude: _currentLongitude,
@@ -171,7 +231,13 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
           createdAt: DateTime.now(),
         );
 
-        await _firestoreService.createCompany(newCompany);
+        await _firestoreService
+            .createCompany(newCompany)
+            .timeout(_requestTimeout);
+
+        // Update user's companyId after company is created
+        final updatedUser = currentUser.copyWith(companyId: companyDocRef.id);
+        await _authService.updateUserData(updatedUser).timeout(_requestTimeout);
       }
 
       if (mounted) {
@@ -183,6 +249,30 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
         );
         Navigator.pop(context);
       }
+    } on FirebaseException catch (e) {
+      if (mounted) {
+        final apiDisabled = e.code == 'permission-denied' &&
+            (e.message ?? '').toLowerCase().contains('firestore api');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              apiDisabled
+                  ? 'Cloud Firestore API is disabled for this project. Enable it in Google Cloud Console, wait a few minutes, then try again.'
+                  : 'Error saving company: ${e.message ?? e.code}',
+            ),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+    } on TimeoutException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Save timed out. Please check internet and try again.'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -193,9 +283,11 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
         );
       }
     } finally {
-      setState(() {
-        _isSaving = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
     }
   }
 

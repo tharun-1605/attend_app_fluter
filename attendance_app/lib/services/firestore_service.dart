@@ -9,6 +9,10 @@ class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
+  DocumentReference<Map<String, dynamic>> createCompanyDoc() {
+    return _firestore.collection('companies').doc();
+  }
+
   // Company methods
   Future<void> createCompany(CompanyModel company) async {
     await _firestore
@@ -125,33 +129,66 @@ class FirestoreService {
     String companyId, {
     DateTime? date,
   }) async {
-    QuerySnapshot snapshot;
+    try {
+      QuerySnapshot snapshot;
 
-    if (date != null) {
-      DateTime startOfDay = DateTime(date.year, date.month, date.day);
-      DateTime endOfDay = startOfDay.add(const Duration(days: 1));
+      if (date != null) {
+        DateTime startOfDay = DateTime(date.year, date.month, date.day);
+        DateTime endOfDay = startOfDay.add(const Duration(days: 1));
 
-      snapshot = await _firestore
+        snapshot = await _firestore
+            .collection('attendance')
+            .where('companyId', isEqualTo: companyId)
+            .where('checkInTime', isGreaterThan: startOfDay.toIso8601String())
+            .where('checkInTime', isLessThan: endOfDay.toIso8601String())
+            .orderBy('checkInTime', descending: true)
+            .get();
+      } else {
+        snapshot = await _firestore
+            .collection('attendance')
+            .where('companyId', isEqualTo: companyId)
+            .orderBy('checkInTime', descending: true)
+            .limit(100)
+            .get();
+      }
+
+      return snapshot.docs
+          .map(
+            (doc) =>
+                AttendanceModel.fromMap(doc.data() as Map<String, dynamic>),
+          )
+          .toList();
+    } on FirebaseException catch (e) {
+      // Fallback for missing composite index: query by company only and filter/sort locally.
+      if (e.code != 'failed-precondition') rethrow;
+
+      final baseSnapshot = await _firestore
           .collection('attendance')
           .where('companyId', isEqualTo: companyId)
-          .where('checkInTime', isGreaterThan: startOfDay.toIso8601String())
-          .where('checkInTime', isLessThan: endOfDay.toIso8601String())
-          .orderBy('checkInTime', descending: true)
+          .limit(1000)
           .get();
-    } else {
-      snapshot = await _firestore
-          .collection('attendance')
-          .where('companyId', isEqualTo: companyId)
-          .orderBy('checkInTime', descending: true)
-          .limit(100)
-          .get();
+
+      var records = baseSnapshot.docs
+          .map((doc) => AttendanceModel.fromMap(doc.data() as Map<String, dynamic>))
+          .toList();
+
+      if (date != null) {
+        final startOfDay = DateTime(date.year, date.month, date.day);
+        final endOfDay = startOfDay.add(const Duration(days: 1));
+        records = records
+            .where(
+              (a) =>
+                  !a.checkInTime.isBefore(startOfDay) &&
+                  a.checkInTime.isBefore(endOfDay),
+            )
+            .toList();
+      }
+
+      records.sort((a, b) => b.checkInTime.compareTo(a.checkInTime));
+      return date == null && records.length > 100
+          ? records.take(100).toList()
+          : records;
     }
-
-    return snapshot.docs
-        .map(
-          (doc) => AttendanceModel.fromMap(doc.data() as Map<String, dynamic>),
-        )
-        .toList();
   }
 
   // Storage methods
@@ -183,32 +220,56 @@ class FirestoreService {
     String companyId,
     DateTime date,
   ) async {
-    DateTime startOfDay = DateTime(date.year, date.month, date.day);
-    DateTime endOfDay = startOfDay.add(const Duration(days: 1));
+    final startOfDay = DateTime(date.year, date.month, date.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
 
     // Get total employees
-    QuerySnapshot employeesSnapshot = await _firestore
+    final employeesSnapshot = await _firestore
         .collection('users')
         .where('companyId', isEqualTo: companyId)
         .where('role', isEqualTo: 'employee')
         .get();
 
-    int totalEmployees = employeesSnapshot.docs.length;
+    final totalEmployees = employeesSnapshot.docs.length;
 
-    // Get present employees
-    QuerySnapshot attendanceSnapshot = await _firestore
-        .collection('attendance')
-        .where('companyId', isEqualTo: companyId)
-        .where('checkInTime', isGreaterThan: startOfDay.toIso8601String())
-        .where('checkInTime', isLessThan: endOfDay.toIso8601String())
-        .get();
+    try {
+      final attendanceSnapshot = await _firestore
+          .collection('attendance')
+          .where('companyId', isEqualTo: companyId)
+          .where('checkInTime', isGreaterThan: startOfDay.toIso8601String())
+          .where('checkInTime', isLessThan: endOfDay.toIso8601String())
+          .get();
 
-    int presentEmployees = attendanceSnapshot.docs.length;
+      final presentEmployees = attendanceSnapshot.docs.length;
+      return {
+        'total': totalEmployees,
+        'present': presentEmployees,
+        'absent': totalEmployees - presentEmployees,
+      };
+    } on FirebaseException catch (e) {
+      // Fallback for missing composite index.
+      if (e.code != 'failed-precondition') rethrow;
 
-    return {
-      'total': totalEmployees,
-      'present': presentEmployees,
-      'absent': totalEmployees - presentEmployees,
-    };
+      final baseSnapshot = await _firestore
+          .collection('attendance')
+          .where('companyId', isEqualTo: companyId)
+          .limit(1000)
+          .get();
+
+      final presentEmployees = baseSnapshot.docs
+          .map((doc) => AttendanceModel.fromMap(doc.data() as Map<String, dynamic>))
+          .where(
+            (a) =>
+                !a.checkInTime.isBefore(startOfDay) &&
+                a.checkInTime.isBefore(endOfDay),
+          )
+          .length;
+
+      return {
+        'total': totalEmployees,
+        'present': presentEmployees,
+        'absent': totalEmployees - presentEmployees,
+      };
+    }
   }
 }
