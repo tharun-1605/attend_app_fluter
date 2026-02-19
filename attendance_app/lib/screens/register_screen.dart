@@ -21,6 +21,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _companyNameController = TextEditingController();
+  final _companyIdController = TextEditingController();
 
   final _authService = AuthService();
   final _firestoreService = FirestoreService();
@@ -37,6 +38,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _companyNameController.dispose();
+    _companyIdController.dispose();
     super.dispose();
   }
 
@@ -49,14 +51,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       // Create user
+      final companyIdInput = _companyIdController.text.trim();
+      if (_selectedRole == 'employee') {
+        final company = await _firestoreService.getCompany(companyIdInput);
+        if (company == null) {
+          throw Exception('Invalid company ID. Please check with your owner.');
+        }
+      }
+
       UserModel? user = await _authService.registerWithEmail(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         name: _nameController.text.trim(),
         role: _selectedRole,
+        companyId: _selectedRole == 'employee' ? companyIdInput : null,
       );
 
-      if (user != null && mounted) {
+      if (user != null) {
         // If owner, create company
         if (_selectedRole == 'owner') {
           final company = CompanyModel(
@@ -72,6 +83,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           await _authService.updateUserData(user);
         }
 
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Registration successful! Please login.'),
@@ -82,14 +94,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
         Navigator.pushReplacementNamed(context, AppRoutes.login);
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString()),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -134,35 +145,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 // Role Selection
                 const Text('I am a:', style: AppTheme.bodyMedium),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: RadioListTile<String>(
-                        title: const Text('Employee'),
-                        value: 'employee',
-                        groupValue: _selectedRole,
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedRole = value!;
-                          });
-                        },
-                        contentPadding: EdgeInsets.zero,
-                      ),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment<String>(
+                      value: 'employee',
+                      label: Text('Employee'),
+                      icon: Icon(Icons.person_outline),
                     ),
-                    Expanded(
-                      child: RadioListTile<String>(
-                        title: const Text('Owner'),
-                        value: 'owner',
-                        groupValue: _selectedRole,
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedRole = value!;
-                          });
-                        },
-                        contentPadding: EdgeInsets.zero,
-                      ),
+                    ButtonSegment<String>(
+                      value: 'owner',
+                      label: Text('Owner'),
+                      icon: Icon(Icons.business_outlined),
                     ),
                   ],
+                  selected: {_selectedRole},
+                  onSelectionChanged: (selection) {
+                    setState(() {
+                      _selectedRole = selection.first;
+                    });
+                  },
                 ),
                 const SizedBox(height: 16),
 
@@ -274,6 +275,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       if (_selectedRole == 'owner' &&
                           (value == null || value.isEmpty)) {
                         return 'Please enter your company name';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+
+                // Company ID field for employee
+                if (_selectedRole == 'employee') ...[
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _companyIdController,
+                    decoration: const InputDecoration(
+                      labelText: 'Company ID',
+                      prefixIcon: Icon(Icons.badge_outlined),
+                      helperText: 'Ask your owner for this ID',
+                    ),
+                    validator: (value) {
+                      if (_selectedRole == 'employee' &&
+                          (value == null || value.trim().isEmpty)) {
+                        return 'Please enter company ID';
                       }
                       return null;
                     },

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../services/auth_service.dart';
@@ -170,6 +170,41 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> {
                                 color: AppTheme.textSecondary,
                               ),
                             ),
+                            if (_company != null) ...[
+                              const SizedBox(height: 10),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      'Company ID: ${_company!.id}',
+                                      style: AppTheme.bodySmall.copyWith(
+                                        color: AppTheme.textSecondary,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Copy company ID',
+                                    icon: const Icon(Icons.copy, size: 18),
+                                    onPressed: () async {
+                                      await Clipboard.setData(
+                                        ClipboardData(text: _company!.id),
+                                      );
+                                      if (!context.mounted) return;
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Company ID copied'),
+                                          backgroundColor:
+                                              AppTheme.successColor,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
                           ],
                         ),
                       ),

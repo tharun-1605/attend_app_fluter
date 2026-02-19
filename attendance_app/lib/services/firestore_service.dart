@@ -9,6 +9,22 @@ class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
+  List<FirebaseStorage> _storageCandidates() {
+    final candidates = <FirebaseStorage>[_storage];
+    final currentBucket = _storage.bucket;
+    const modernSuffix = '.firebasestorage.app';
+    if (currentBucket.endsWith(modernSuffix)) {
+      final projectId = currentBucket.substring(
+        0,
+        currentBucket.length - modernSuffix.length,
+      );
+      candidates.add(
+        FirebaseStorage.instanceFor(bucket: 'gs://$projectId.appspot.com'),
+      );
+    }
+    return candidates;
+  }
+
   DocumentReference<Map<String, dynamic>> createCompanyDoc() {
     return _firestore.collection('companies').doc();
   }
@@ -87,24 +103,48 @@ class FirestoreService {
   }
 
   Future<AttendanceModel?> getTodayAttendance(String userId) async {
-    DateTime now = DateTime.now();
-    DateTime startOfDay = DateTime(now.year, now.month, now.day);
-    DateTime endOfDay = startOfDay.add(const Duration(days: 1));
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
 
-    QuerySnapshot snapshot = await _firestore
-        .collection('attendance')
-        .where('userId', isEqualTo: userId)
-        .where('checkInTime', isGreaterThan: startOfDay.toIso8601String())
-        .where('checkInTime', isLessThan: endOfDay.toIso8601String())
-        .limit(1)
-        .get();
+    try {
+      final snapshot = await _firestore
+          .collection('attendance')
+          .where('userId', isEqualTo: userId)
+          .where('checkInTime', isGreaterThan: startOfDay.toIso8601String())
+          .where('checkInTime', isLessThan: endOfDay.toIso8601String())
+          .limit(1)
+          .get();
 
-    if (snapshot.docs.isNotEmpty) {
-      return AttendanceModel.fromMap(
-        snapshot.docs.first.data() as Map<String, dynamic>,
-      );
+      if (snapshot.docs.isNotEmpty) {
+        return AttendanceModel.fromMap(
+          snapshot.docs.first.data(),
+        );
+      }
+      return null;
+    } on FirebaseException catch (e) {
+      // Fallback for missing composite index: query by user only and filter locally.
+      if (e.code != 'failed-precondition') rethrow;
+
+      final baseSnapshot = await _firestore
+          .collection('attendance')
+          .where('userId', isEqualTo: userId)
+          .limit(200)
+          .get();
+
+      final todaysRecords = baseSnapshot.docs
+          .map((doc) => AttendanceModel.fromMap(doc.data()))
+          .where(
+            (a) =>
+                !a.checkInTime.isBefore(startOfDay) &&
+                a.checkInTime.isBefore(endOfDay),
+          )
+          .toList();
+
+      if (todaysRecords.isEmpty) return null;
+      todaysRecords.sort((a, b) => b.checkInTime.compareTo(a.checkInTime));
+      return todaysRecords.first;
     }
-    return null;
   }
 
   Future<List<AttendanceModel>> getAttendanceByUser(
@@ -169,7 +209,7 @@ class FirestoreService {
           .get();
 
       var records = baseSnapshot.docs
-          .map((doc) => AttendanceModel.fromMap(doc.data() as Map<String, dynamic>))
+          .map((doc) => AttendanceModel.fromMap(doc.data()))
           .toList();
 
       if (date != null) {
@@ -193,18 +233,44 @@ class FirestoreService {
 
   // Storage methods
   Future<String> uploadFaceImage(String userId, Uint8List imageBytes) async {
-    try {
-      Reference ref = _storage.ref().child('face_images').child('$userId.jpg');
-      UploadTask task = ref.putData(
-        imageBytes,
-        SettableMetadata(contentType: 'image/jpeg'),
-      );
+    final metadata = SettableMetadata(contentType: 'image/jpeg');
+    FirebaseException? lastError;
+    for (final storage in _storageCandidates()) {
+      final ref = storage.ref().child('face_images').child('$userId.jpg');
+      try {
+        // Upload once and retry once for transient lookup issues.
+        try {
+          await ref.putData(imageBytes, metadata);
+        } on FirebaseException catch (e) {
+          if (e.code != 'object-not-found') rethrow;
+          await Future<void>.delayed(const Duration(milliseconds: 350));
+          await ref.putData(imageBytes, metadata);
+        }
 
-      TaskSnapshot snapshot = await task;
-      return await snapshot.ref.getDownloadURL();
-    } catch (e) {
-      rethrow;
+        // Download URL creation can lag briefly after upload on some setups.
+        for (var i = 0; i < 3; i++) {
+          try {
+            return await ref.getDownloadURL();
+          } on FirebaseException catch (e) {
+            if (e.code != 'object-not-found') rethrow;
+            if (i < 2) {
+              await Future<void>.delayed(
+                Duration(milliseconds: 300 * (i + 1)),
+              );
+            }
+          }
+        }
+
+        // Keep registration successful with a stable storage reference.
+        return 'gs://${storage.bucket}/${ref.fullPath}';
+      } on FirebaseException catch (e) {
+        lastError = e;
+        // Try next configured bucket candidate.
+      }
     }
+
+    if (lastError != null) throw lastError;
+    throw Exception('Face image upload failed');
   }
 
   Future<void> deleteFaceImage(String userId) async {
@@ -257,7 +323,7 @@ class FirestoreService {
           .get();
 
       final presentEmployees = baseSnapshot.docs
-          .map((doc) => AttendanceModel.fromMap(doc.data() as Map<String, dynamic>))
+          .map((doc) => AttendanceModel.fromMap(doc.data()))
           .where(
             (a) =>
                 !a.checkInTime.isBefore(startOfDay) &&

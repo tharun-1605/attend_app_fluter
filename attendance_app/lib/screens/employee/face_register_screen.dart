@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:io';
 import '../../config/theme.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
@@ -26,6 +28,7 @@ class _FaceRegisterScreenState extends State<FaceRegisterScreen> {
   bool _isInitializing = true;
   bool _isProcessing = false;
   bool _faceDetected = false;
+  bool _isStreaming = false;
   String _statusMessage = 'Initializing camera...';
   int _imageCount = 0;
   final List<String> _capturedImages = [];
@@ -59,6 +62,9 @@ class _FaceRegisterScreenState extends State<FaceRegisterScreen> {
         frontCamera,
         ResolutionPreset.high,
         enableAudio: false,
+        imageFormatGroup: Platform.isAndroid
+            ? ImageFormatGroup.nv21
+            : ImageFormatGroup.bgra8888,
       );
 
       await _cameraController!.initialize();
@@ -80,6 +86,7 @@ class _FaceRegisterScreenState extends State<FaceRegisterScreen> {
   }
 
   void _startImageStream() {
+    if (_isStreaming) return;
     _cameraController?.startImageStream((cameraImage) async {
       if (_isProcessing || _imageCount >= 5) return;
 
@@ -111,12 +118,32 @@ class _FaceRegisterScreenState extends State<FaceRegisterScreen> {
 
       _isProcessing = false;
     });
+    _isStreaming = true;
+  }
+
+  Future<void> _stopImageStream() async {
+    if (!_isStreaming) return;
+    try {
+      await _cameraController?.stopImageStream();
+    } catch (_) {
+      // Ignore stream stop failures and continue capture flow.
+    } finally {
+      _isStreaming = false;
+    }
   }
 
   InputImage? _convertCameraImage(CameraImage image) {
     try {
       final camera = _cameraController?.description;
       if (camera == null) return null;
+
+      final isAndroid = Platform.isAndroid;
+      final expectedGroup = isAndroid
+          ? ImageFormatGroup.nv21
+          : ImageFormatGroup.bgra8888;
+      if (image.format.group != expectedGroup || image.planes.isEmpty) {
+        return null;
+      }
 
       final rotation = InputImageRotationValue.fromRawValue(
         camera.sensorOrientation,
@@ -126,6 +153,8 @@ class _FaceRegisterScreenState extends State<FaceRegisterScreen> {
       final format = InputImageFormatValue.fromRawValue(image.format.raw);
       if (format == null) return null;
 
+      // ML Kit expects a single-plane buffer for nv21/bgra8888.
+      if (image.planes.length != 1) return null;
       final plane = image.planes.first;
 
       return InputImage.fromBytes(
@@ -158,8 +187,10 @@ class _FaceRegisterScreenState extends State<FaceRegisterScreen> {
     }
 
     try {
+      await _stopImageStream();
       final image = await _cameraController!.takePicture();
 
+      if (!mounted) return;
       setState(() {
         _capturedImages.add(image.path);
         _imageCount++;
@@ -168,8 +199,12 @@ class _FaceRegisterScreenState extends State<FaceRegisterScreen> {
 
       if (_imageCount >= 5) {
         await _saveFaceData();
+      } else {
+        _startImageStream();
       }
     } catch (e) {
+      _startImageStream();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error capturing image: $e'),
@@ -184,14 +219,34 @@ class _FaceRegisterScreenState extends State<FaceRegisterScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
+      if (_capturedImages.isEmpty) {
+        throw Exception('No captured face image found');
+      }
+
+      final imageBytes = await File(_capturedImages.first).readAsBytes();
+      final faceImageUrl = await _firestoreService.uploadFaceImage(
+        user.uid,
+        imageBytes,
+      );
+
       setState(() {
         _statusMessage = 'Saving face data...';
       });
 
-      // Update user as face registered
+      // Update user as face registered. If user fetch fails, still persist
+      // core fields directly so login can verify the stored face.
       final userData = await _authService.getUserData(user.uid);
-      if (userData != null) {
-        final updatedUser = userData.copyWith(isFaceRegistered: true);
+      if (userData == null) {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'id': user.uid,
+          'isFaceRegistered': true,
+          'faceImageUrl': faceImageUrl,
+        }, SetOptions(merge: true));
+      } else {
+        final updatedUser = userData.copyWith(
+          isFaceRegistered: true,
+          faceImageUrl: faceImageUrl,
+        );
         await _authService.updateUserData(updatedUser);
       }
 
@@ -219,6 +274,7 @@ class _FaceRegisterScreenState extends State<FaceRegisterScreen> {
 
   @override
   void dispose() {
+    _stopImageStream();
     _cameraController?.dispose();
     _faceDetector.close();
     super.dispose();

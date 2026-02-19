@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:uuid/uuid.dart';
+import 'dart:io';
 import '../../config/theme.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/face_verification_service.dart';
 import '../../services/location_service.dart';
 import '../../models/attendance_model.dart';
 
@@ -28,12 +31,14 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
 
   bool _isInitializing = true;
   bool _isProcessing = false;
+  bool _isStreaming = false;
   bool _faceDetected = false;
   bool _isMarkingAttendance = false;
   String _statusMessage = 'Initializing camera...';
 
   final _authService = AuthService();
   final _firestoreService = FirestoreService();
+  final _faceVerificationService = FaceVerificationService();
   final _locationService = LocationService();
 
   @override
@@ -62,6 +67,9 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
         frontCamera,
         ResolutionPreset.high,
         enableAudio: false,
+        imageFormatGroup: Platform.isAndroid
+            ? ImageFormatGroup.nv21
+            : ImageFormatGroup.bgra8888,
       );
 
       await _cameraController!.initialize();
@@ -83,6 +91,7 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
   }
 
   void _startImageStream() {
+    if (_isStreaming) return;
     _cameraController?.startImageStream((cameraImage) async {
       if (_isProcessing || _isMarkingAttendance) return;
 
@@ -113,12 +122,32 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
 
       _isProcessing = false;
     });
+    _isStreaming = true;
+  }
+
+  Future<void> _stopImageStream() async {
+    if (!_isStreaming) return;
+    try {
+      await _cameraController?.stopImageStream();
+    } catch (_) {
+      // Ignore and continue.
+    } finally {
+      _isStreaming = false;
+    }
   }
 
   InputImage? _convertCameraImage(CameraImage image) {
     try {
       final camera = _cameraController?.description;
       if (camera == null) return null;
+
+      final isAndroid = Platform.isAndroid;
+      final expectedGroup = isAndroid
+          ? ImageFormatGroup.nv21
+          : ImageFormatGroup.bgra8888;
+      if (image.format.group != expectedGroup || image.planes.isEmpty) {
+        return null;
+      }
 
       final rotation = InputImageRotationValue.fromRawValue(
         camera.sensorOrientation,
@@ -128,6 +157,8 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
       final format = InputImageFormatValue.fromRawValue(image.format.raw);
       if (format == null) return null;
 
+      // ML Kit expects a single-plane buffer for nv21/bgra8888.
+      if (image.planes.length != 1) return null;
       final plane = image.planes.first;
 
       return InputImage.fromBytes(
@@ -168,6 +199,47 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
       // Check if user has company
       if (user.companyId == null) {
         throw Exception('No company associated with this user');
+      }
+
+      String? registeredFaceUrl = user.faceImageUrl;
+      if (registeredFaceUrl == null || registeredFaceUrl.trim().isEmpty) {
+        // Backward-compatible fallback for users marked as registered before
+        // faceImageUrl was persisted.
+        if (user.isFaceRegistered) {
+          final bucket = FirebaseStorage.instance.bucket;
+          registeredFaceUrl = 'gs://$bucket/face_images/${user.id}.jpg';
+        }
+      }
+
+      if (!user.isFaceRegistered || registeredFaceUrl == null) {
+        throw Exception(
+          'No registered face found. Please register your face first.',
+        );
+      }
+
+      if (_cameraController == null || !_cameraController!.value.isInitialized) {
+        throw Exception('Camera not ready');
+      }
+
+      await _stopImageStream();
+      final livePhoto = await _cameraController!.takePicture();
+      var isFaceMatch = await _faceVerificationService.verifyAgainstRegisteredFace(
+        registeredFaceUrl: registeredFaceUrl,
+        liveImagePath: livePhoto.path,
+      );
+      if (!isFaceMatch &&
+          registeredFaceUrl.contains('.firebasestorage.app/')) {
+        final altUrl = registeredFaceUrl.replaceFirst(
+          '.firebasestorage.app/',
+          '.appspot.com/',
+        );
+        isFaceMatch = await _faceVerificationService.verifyAgainstRegisteredFace(
+          registeredFaceUrl: altUrl,
+          liveImagePath: livePhoto.path,
+        );
+      }
+      if (!isFaceMatch) {
+        throw Exception('Face does not match registered employee face');
       }
 
       // Get company data
@@ -267,6 +339,7 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
           _statusMessage = 'Error marking attendance';
           _isMarkingAttendance = false;
         });
+        _startImageStream();
       }
     }
   }
@@ -311,6 +384,8 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
 
   @override
   void dispose() {
+    _stopImageStream();
+    _faceVerificationService.dispose();
     _cameraController?.dispose();
     _faceDetector.close();
     super.dispose();
