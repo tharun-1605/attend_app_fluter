@@ -47,6 +47,19 @@ class FaceVerificationService {
 
   Future<Uint8List?> _loadRegisteredImageBytes(String url) async {
     try {
+      if (url.startsWith('file://')) {
+        final localPath = Uri.parse(url).toFilePath();
+        final file = File(localPath);
+        if (!await file.exists()) return null;
+        return await file.readAsBytes();
+      }
+
+      if (url.startsWith('/') || RegExp(r'^[A-Za-z]:[\\/]').hasMatch(url)) {
+        final file = File(url);
+        if (!await file.exists()) return null;
+        return await file.readAsBytes();
+      }
+
       final ref = FirebaseStorage.instance.refFromURL(url);
       return await ref.getData(5 * 1024 * 1024);
     } catch (_) {

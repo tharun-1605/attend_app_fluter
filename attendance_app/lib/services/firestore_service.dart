@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 import 'dart:typed_data';
 import '../models/user_model.dart';
 import '../models/attendance_model.dart';
@@ -269,8 +271,21 @@ class FirestoreService {
       }
     }
 
-    if (lastError != null) throw lastError;
-    throw Exception('Face image upload failed');
+    // Final fallback: keep a local copy on device so face verification can still
+    // work even when Firebase Storage bucket is unavailable.
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final faceDir = Directory('${dir.path}/face_images');
+      if (!await faceDir.exists()) {
+        await faceDir.create(recursive: true);
+      }
+      final localFile = File('${faceDir.path}/$userId.jpg');
+      await localFile.writeAsBytes(imageBytes, flush: true);
+      return 'file://${localFile.path.replaceAll('\\', '/')}';
+    } catch (_) {
+      if (lastError != null) throw lastError;
+      throw Exception('Face image upload failed');
+    }
   }
 
   Future<void> deleteFaceImage(String userId) async {
