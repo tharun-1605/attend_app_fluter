@@ -16,6 +16,7 @@ class GradientScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 600;
     final body = Stack(
       children: [
         Container(
@@ -32,26 +33,26 @@ class GradientScaffold extends StatelessWidget {
           ),
         ),
         Positioned(
-          top: -80,
-          left: -40,
+          top: isCompact ? -60 : -80,
+          left: isCompact ? -30 : -40,
           child: _GlowOrb(
-            size: 220,
+            size: isCompact ? 160 : 220,
             color: AppTheme.primaryLight.withValues(alpha: 0.28),
           ),
         ),
         Positioned(
-          top: 90,
-          right: -30,
+          top: isCompact ? 70 : 90,
+          right: isCompact ? -20 : -30,
           child: _GlowOrb(
-            size: 180,
+            size: isCompact ? 130 : 180,
             color: AppTheme.accentColor.withValues(alpha: 0.16),
           ),
         ),
         Positioned(
-          bottom: -70,
-          right: -20,
+          bottom: isCompact ? -50 : -70,
+          right: isCompact ? -10 : -20,
           child: _GlowOrb(
-            size: 240,
+            size: isCompact ? 180 : 240,
             color: AppTheme.primaryColor.withValues(alpha: 0.14),
           ),
         ),
@@ -82,7 +83,12 @@ class ResponsiveContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final horizontalPadding = constraints.maxWidth > 720 ? 32.0 : padding.horizontal / 2;
+        final isCompact = constraints.maxWidth < 600;
+        final horizontalPadding = constraints.maxWidth > 720
+            ? 28.0
+            : isCompact
+                ? 14.0
+                : padding.horizontal / 2;
         return SizedBox.expand(
           child: Padding(
             padding: EdgeInsets.fromLTRB(
@@ -112,8 +118,8 @@ class GlassPanel extends StatelessWidget {
   const GlassPanel({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(20),
-    this.radius = 28,
+    this.padding = const EdgeInsets.all(16),
+    this.radius = 22,
   });
 
   final Widget child;
@@ -122,15 +128,18 @@ class GlassPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 600;
+    final resolvedPadding = isCompact ? const EdgeInsets.all(14) : padding;
+    final resolvedRadius = isCompact ? radius - 4 : radius;
     return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
+      borderRadius: BorderRadius.circular(resolvedRadius),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
-          padding: padding,
+          padding: resolvedPadding,
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.72),
-            borderRadius: BorderRadius.circular(radius),
+            borderRadius: BorderRadius.circular(resolvedRadius),
             border: Border.all(
               color: Colors.white.withValues(alpha: 0.8),
             ),
@@ -229,16 +238,17 @@ class HeroBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 600;
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isCompact ? 18 : 24),
       decoration: BoxDecoration(
         gradient: AppTheme.heroGradient,
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(isCompact ? 24 : 32),
         boxShadow: [
           BoxShadow(
             color: AppTheme.primaryDark.withValues(alpha: 0.18),
-            blurRadius: 30,
-            offset: const Offset(0, 16),
+            blurRadius: isCompact ? 22 : 30,
+            offset: Offset(0, isCompact ? 12 : 16),
           ),
         ],
       ),
@@ -247,24 +257,31 @@ class HeroBanner extends StatelessWidget {
         children: [
           leading ??
               Container(
-                height: 56,
-                width: 56,
+                height: isCompact ? 48 : 56,
+                width: isCompact ? 48 : 56,
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(isCompact ? 14 : 18),
                 ),
-                child: Icon(icon, color: Colors.white, size: 28),
+                child: Icon(
+                  icon,
+                  color: Colors.white,
+                  size: isCompact ? 22 : 28,
+                ),
               ),
-          const SizedBox(width: 16),
+          SizedBox(width: isCompact ? 12 : 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: AppTheme.headingMedium.copyWith(color: Colors.white),
+                  style: AppTheme.headingMedium.copyWith(
+                    color: Colors.white,
+                    fontSize: isCompact ? 19 : AppTheme.headingMedium.fontSize,
+                  ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: isCompact ? 6 : 8),
                 Text(
                   subtitle,
                   style: AppTheme.bodyMedium.copyWith(
@@ -275,7 +292,7 @@ class HeroBanner extends StatelessWidget {
             ),
           ),
           if (trailing != null) ...[
-            const SizedBox(width: 12),
+            SizedBox(width: isCompact ? 8 : 12),
             trailing!,
           ],
         ],
@@ -330,8 +347,12 @@ class StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 600;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: isCompact ? 10 : 12,
+        vertical: isCompact ? 6 : 8,
+      ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
@@ -341,8 +362,8 @@ class StatusPill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 6),
+            Icon(icon, size: isCompact ? 12 : 14, color: color),
+            SizedBox(width: isCompact ? 4 : 6),
           ],
           Text(
             label,

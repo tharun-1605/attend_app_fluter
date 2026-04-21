@@ -66,7 +66,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isWide = MediaQuery.sizeOf(context).width > 860;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isWide = screenWidth > 860;
+    final isCompact = screenWidth < 600;
     final hero = AnimatedEntrance(
       delay: const Duration(milliseconds: 40),
       child: HeroBanner(
@@ -75,16 +77,16 @@ class _LoginScreenState extends State<LoginScreen> {
             'A cleaner workspace for owners and employees to check in, verify identity, and follow attendance in real time.',
         icon: Icons.verified_user_rounded,
         leading: Container(
-          height: 56,
-          width: 56,
+          height: isCompact ? 48 : 56,
+          width: isCompact ? 48 : 56,
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.16),
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(isCompact ? 14 : 18),
           ),
-          child: const AppLogoMark(
-            size: 56,
-            padding: EdgeInsets.all(8),
-            borderRadius: 18,
+          child: AppLogoMark(
+            size: isCompact ? 48 : 56,
+            padding: EdgeInsets.all(isCompact ? 7 : 8),
+            borderRadius: isCompact ? 14 : 18,
           ),
         ),
         trailing: const StatusPill(
@@ -97,7 +99,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final formPanel = AnimatedEntrance(
       delay: const Duration(milliseconds: 140),
       child: GlassPanel(
-        padding: const EdgeInsets.all(28),
+        padding: EdgeInsets.all(isCompact ? 18 : 24),
         child: Form(
           key: _formKey,
           child: Column(
@@ -112,7 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   color: AppTheme.textSecondary,
                 ),
               ),
-              const SizedBox(height: 28),
+              SizedBox(height: isCompact ? 20 : 24),
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
@@ -131,7 +133,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   return null;
                 },
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _passwordController,
                 obscureText: _obscurePassword,
@@ -162,7 +164,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   return null;
                 },
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: isCompact ? 18 : 20),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 220),
                 child: _isLoading
@@ -179,7 +181,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         label: const Text('Login'),
                       ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 14),
               Wrap(
                 alignment: WrapAlignment.center,
                 crossAxisAlignment: WrapCrossAlignment.center,
@@ -208,7 +210,12 @@ class _LoginScreenState extends State<LoginScreen> {
     return GradientScaffold(
       child: ResponsiveContent(
         maxWidth: 1160,
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+        padding: EdgeInsets.fromLTRB(
+          isCompact ? 14 : 20,
+          isCompact ? 14 : 24,
+          isCompact ? 14 : 20,
+          isCompact ? 18 : 24,
+        ),
         child: isWide
             ? Center(
                 child: Row(
@@ -225,7 +232,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     hero,
-                    const SizedBox(height: 24),
+                    SizedBox(height: isCompact ? 16 : 24),
                     formPanel,
                   ],
                 ),

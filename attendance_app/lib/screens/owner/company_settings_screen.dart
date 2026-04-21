@@ -8,6 +8,7 @@ import '../../services/firestore_service.dart';
 import '../../services/location_service.dart';
 import '../../models/user_model.dart';
 import '../../models/company_model.dart';
+import '../../widgets/modern_ui.dart';
 
 class CompanySettingsScreen extends StatefulWidget {
   const CompanySettingsScreen({super.key});
@@ -321,33 +322,44 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Company Settings'),
-        actions: [
-          if (_company != null && !_isEditing)
-            TextButton.icon(
-              onPressed: () {
-                setState(() {
-                  _isEditing = true;
-                });
-              },
-              icon: const Icon(Icons.edit),
-              label: const Text('Edit'),
-            ),
-        ],
-      ),
-      body: _isLoading
+    return GradientScaffold(
+      child: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: _company != null && !_isEditing
-                  ? _buildCompanyDetails()
-                  : Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
+          : ResponsiveContent(
+              maxWidth: 980,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Company Settings',
+                            style: AppTheme.headingMedium,
+                          ),
+                        ),
+                        if (_company != null && !_isEditing)
+                          TextButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _isEditing = true;
+                              });
+                            },
+                            icon: const Icon(Icons.edit),
+                            label: const Text('Edit'),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    _company != null && !_isEditing
+                        ? _buildCompanyDetails()
+                        : GlassPanel(
+                            child: Form(
+                              key: _formKey,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
                           TextFormField(
                             controller: _companyNameController,
                             decoration: const InputDecoration(
@@ -370,43 +382,41 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
+                          GlassPanel(
+                            padding: const EdgeInsets.all(14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Company Location',
+                                  style: AppTheme.headingSmall,
+                                ),
+                                const SizedBox(height: 8),
+                                if (_currentLatitude != null &&
+                                    _currentLongitude != null)
                                   Text(
-                                    'Company Location',
-                                    style: AppTheme.headingSmall,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  if (_currentLatitude != null &&
-                                      _currentLongitude != null)
-                                    Text(
-                                      'Lat: ${_currentLatitude!.toStringAsFixed(6)}, Lng: ${_currentLongitude!.toStringAsFixed(6)}',
-                                      style: AppTheme.bodyMedium,
-                                    )
-                                  else
-                                    Text(
-                                      'Location not set',
-                                      style: AppTheme.bodyMedium.copyWith(
-                                        color: AppTheme.errorColor,
-                                      ),
-                                    ),
-                                  const SizedBox(height: 12),
-                                  ElevatedButton.icon(
-                                    onPressed: _getCurrentLocation,
-                                    icon: const Icon(Icons.my_location),
-                                    label: Text(
-                                      _currentLatitude != null &&
-                                              _currentLongitude != null
-                                          ? 'Update Location'
-                                          : 'Get Current Location',
+                                    'Lat: ${_currentLatitude!.toStringAsFixed(6)}, Lng: ${_currentLongitude!.toStringAsFixed(6)}',
+                                    style: AppTheme.bodyMedium,
+                                  )
+                                else
+                                  Text(
+                                    'Location not set',
+                                    style: AppTheme.bodyMedium.copyWith(
+                                      color: AppTheme.errorColor,
                                     ),
                                   ),
-                                ],
-                              ),
+                                const SizedBox(height: 12),
+                                ElevatedButton.icon(
+                                  onPressed: _getCurrentLocation,
+                                  icon: const Icon(Icons.my_location),
+                                  label: Text(
+                                    _currentLatitude != null &&
+                                            _currentLongitude != null
+                                        ? 'Update Location'
+                                        : 'Get Current Location',
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -468,9 +478,6 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
                           const SizedBox(height: 24),
                           ElevatedButton(
                             onPressed: _isSaving ? null : _saveCompany,
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                            ),
                             child: _isSaving
                                 ? const SizedBox(
                                     height: 20,
@@ -488,9 +495,13 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
                                         : 'Save Changes',
                                   ),
                           ),
-                        ],
-                      ),
-                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                  ],
+                ),
+              ),
             ),
     );
   }
@@ -504,9 +515,9 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Card(
+        GlassPanel(
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.zero,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

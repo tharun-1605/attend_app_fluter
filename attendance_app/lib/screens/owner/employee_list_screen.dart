@@ -4,6 +4,7 @@ import '../../config/theme.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../models/user_model.dart';
+import '../../widgets/modern_ui.dart';
 
 class EmployeeListScreen extends StatefulWidget {
   const EmployeeListScreen({super.key});
@@ -59,52 +60,100 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Employee List')),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _employees.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+    return GradientScaffold(
+      child: ResponsiveContent(
+        maxWidth: 980,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(bottom: 14),
+              child: Text('Employee List', style: AppTheme.headingMedium),
+            ),
+            GlassPanel(
+              child: Row(
                 children: [
-                  const Icon(
-                    Icons.people,
-                    size: 60,
-                    color: AppTheme.textSecondary,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No employees yet',
-                    style: AppTheme.bodyLarge.copyWith(
-                      color: AppTheme.textSecondary,
+                  Container(
+                    height: 42,
+                    width: 42,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.groups_rounded,
+                      color: AppTheme.primaryColor,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Employees can register using the app',
-                    style: AppTheme.bodySmall,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Team directory', style: AppTheme.headingSmall),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_employees.length} employees linked to this company',
+                          style: AppTheme.bodyMedium.copyWith(
+                            color: AppTheme.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
-            )
-          : RefreshIndicator(
-              onRefresh: _loadEmployees,
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: _employees.length,
-                itemBuilder: (context, index) {
-                  final employee = _employees[index];
-                  return _buildEmployeeCard(employee);
-                },
-              ),
             ),
+            const SizedBox(height: 14),
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _employees.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.people,
+                                size: 56,
+                                color: AppTheme.textSecondary,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'No employees yet',
+                                style: AppTheme.bodyLarge.copyWith(
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Employees can register using the app',
+                                style: AppTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _loadEmployees,
+                          child: ListView.builder(
+                            padding: EdgeInsets.zero,
+                            itemCount: _employees.length,
+                            itemBuilder: (context, index) {
+                              final employee = _employees[index];
+                              return _buildEmployeeCard(employee);
+                            },
+                          ),
+                        ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildEmployeeCard(UserModel employee) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: AppTheme.primaryColor,
@@ -136,7 +185,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                       ? 'Face registered'
                       : 'Face not registered',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     color: employee.isFaceRegistered
                         ? AppTheme.successColor
                         : AppTheme.accentColor,

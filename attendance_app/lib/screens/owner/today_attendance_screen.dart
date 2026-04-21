@@ -5,6 +5,7 @@ import '../../config/theme.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../models/attendance_model.dart';
+import '../../widgets/modern_ui.dart';
 
 class TodayAttendanceScreen extends StatefulWidget {
   const TodayAttendanceScreen({super.key});
@@ -69,98 +70,110 @@ class _TodayAttendanceScreenState extends State<TodayAttendanceScreen> {
   Widget build(BuildContext context) {
     final todayLabel = DateFormat('MMM dd, yyyy').format(DateTime.now());
 
-    return Scaffold(
-      appBar: AppBar(title: const Text("Today's Attendance")),
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            color: AppTheme.primaryColor.withValues(alpha: 0.1),
-            child: Text(
-              'Date: $todayLabel',
-              style: AppTheme.headingSmall,
+    return GradientScaffold(
+      child: ResponsiveContent(
+        maxWidth: 980,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(bottom: 14),
+              child: Text("Today's Attendance", style: AppTheme.headingMedium),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
+            GlassPanel(
+              child: Row(
+                children: [
+                  Container(
+                    height: 42,
+                    width: 42,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.today_rounded,
+                      color: AppTheme.primaryColor,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Date: $todayLabel',
+                      style: AppTheme.headingSmall,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
               children: [
-                Expanded(
-                  child: _buildSummaryCard(
-                    'Total',
-                    _attendanceList.length.toString(),
-                    Icons.people,
-                    AppTheme.primaryColor,
-                  ),
+                _buildSummaryCard(
+                  'Total',
+                  _attendanceList.length.toString(),
+                  Icons.people,
+                  AppTheme.primaryColor,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildSummaryCard(
-                    'Present',
-                    _attendanceList
-                        .where(
-                          (a) => a.status == 'present' || a.status == 'late',
-                        )
-                        .length
-                        .toString(),
-                    Icons.check_circle,
-                    AppTheme.successColor,
-                  ),
+                _buildSummaryCard(
+                  'Present',
+                  _attendanceList
+                      .where((a) => a.status == 'present' || a.status == 'late')
+                      .length
+                      .toString(),
+                  Icons.check_circle,
+                  AppTheme.successColor,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildSummaryCard(
-                    'Invalid',
-                    _attendanceList
-                        .where(
-                          (a) => a.status != 'present' && a.status != 'late',
-                        )
-                        .length
-                        .toString(),
-                    Icons.warning,
-                    AppTheme.errorColor,
-                  ),
+                _buildSummaryCard(
+                  'Invalid',
+                  _attendanceList
+                      .where((a) => a.status != 'present' && a.status != 'late')
+                      .length
+                      .toString(),
+                  Icons.warning,
+                  AppTheme.errorColor,
                 ),
               ],
             ),
-          ),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _attendanceList.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.event_busy,
-                          size: 60,
-                          color: AppTheme.textSecondary,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No attendance records for today',
-                          style: AppTheme.bodyLarge.copyWith(
-                            color: AppTheme.textSecondary,
+            const SizedBox(height: 14),
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _attendanceList.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.event_busy,
+                                size: 56,
+                                color: AppTheme.textSecondary,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'No attendance records for today',
+                                style: AppTheme.bodyLarge.copyWith(
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _loadAttendance,
+                          child: ListView.builder(
+                            padding: EdgeInsets.zero,
+                            itemCount: _attendanceList.length,
+                            itemBuilder: (context, index) {
+                              final attendance = _attendanceList[index];
+                              return _buildAttendanceCard(attendance);
+                            },
                           ),
                         ),
-                      ],
-                    ),
-                  )
-                : RefreshIndicator(
-                    onRefresh: _loadAttendance,
-                    child: ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _attendanceList.length,
-                      itemBuilder: (context, index) {
-                        final attendance = _attendanceList[index];
-                        return _buildAttendanceCard(attendance);
-                      },
-                    ),
-                  ),
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -171,12 +184,13 @@ class _TodayAttendanceScreenState extends State<TodayAttendanceScreen> {
     IconData icon,
     Color color,
   ) {
-    return Card(
-      child: Padding(
+    return SizedBox(
+      width: 110,
+      child: GlassPanel(
         padding: const EdgeInsets.all(12),
         child: Column(
           children: [
-            Icon(icon, color: color, size: 24),
+            Icon(icon, color: color, size: 22),
             const SizedBox(height: 4),
             Text(value, style: AppTheme.headingSmall.copyWith(color: color)),
             Text(label, style: AppTheme.bodySmall),
@@ -190,7 +204,7 @@ class _TodayAttendanceScreenState extends State<TodayAttendanceScreen> {
     final timeFormat = DateFormat('hh:mm a');
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor:

@@ -52,6 +52,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 600;
     return Scaffold(
       backgroundColor: AppTheme.primaryColor,
       body: Center(
@@ -59,28 +60,31 @@ class _SplashScreenState extends State<SplashScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: EdgeInsets.all(isCompact ? 8 : 10),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(28),
+                borderRadius: BorderRadius.circular(isCompact ? 22 : 28),
               ),
-              child: const AppLogoMark(
-                size: 108,
-                padding: EdgeInsets.all(12),
-                borderRadius: 20,
+              child: AppLogoMark(
+                size: isCompact ? 88 : 108,
+                padding: EdgeInsets.all(isCompact ? 10 : 12),
+                borderRadius: isCompact ? 16 : 20,
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: isCompact ? 16 : 20),
             Text(
               'Attendance App',
               style: AppTheme.headingLarge.copyWith(color: Colors.white),
             ),
-            const SizedBox(height: 10),
-            const Text(
+            SizedBox(height: isCompact ? 8 : 10),
+            Text(
               'Face Recognition Attendance System',
-              style: TextStyle(color: Colors.white70, fontSize: 16),
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: isCompact ? 13 : 15,
+              ),
             ),
-            const SizedBox(height: 30),
+            SizedBox(height: isCompact ? 22 : 30),
             const CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
             ),

@@ -145,6 +145,7 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 600;
     return GradientScaffold(
       child: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -180,7 +181,7 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: isCompact ? 16 : 20),
                         AnimatedEntrance(
                           delay: const Duration(milliseconds: 100),
                           child: GlassPanel(
@@ -266,13 +267,13 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> {
                           ),
                         ),
                         if (_todayStats != null) ...[
-                          const SizedBox(height: 20),
+                          SizedBox(height: isCompact ? 16 : 20),
                           AnimatedEntrance(
                             delay: const Duration(milliseconds: 160),
                             child: _buildStatsSection(context),
                           ),
                         ],
-                        const SizedBox(height: 20),
+                        SizedBox(height: isCompact ? 16 : 20),
                         AnimatedEntrance(
                           delay: const Duration(milliseconds: 220),
                           child: GlassPanel(
@@ -601,26 +602,26 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> {
     VoidCallback onTap,
   ) {
     return InkWell(
-      borderRadius: BorderRadius.circular(26),
+      borderRadius: BorderRadius.circular(22),
       onTap: onTap,
       child: Ink(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.55),
-          borderRadius: BorderRadius.circular(26),
+          borderRadius: BorderRadius.circular(22),
         ),
         child: Row(
           children: [
             Container(
-              height: 52,
-              width: 52,
+              height: 46,
+              width: 46,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(icon, color: color),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -636,7 +637,7 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> {
                 ],
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             const Icon(Icons.arrow_forward_rounded),
           ],
         ),
@@ -669,16 +670,16 @@ class _StatCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              height: 50,
-              width: 50,
+              height: 44,
+              width: 44,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(icon, color: color),
             ),
-            const SizedBox(height: 18),
-            Text(value, style: AppTheme.headingLarge.copyWith(fontSize: 28)),
+            const SizedBox(height: 14),
+            Text(value, style: AppTheme.headingLarge.copyWith(fontSize: 24)),
             const SizedBox(height: 6),
             Text(
               label,

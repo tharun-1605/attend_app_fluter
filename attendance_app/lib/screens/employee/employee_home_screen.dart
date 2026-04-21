@@ -136,6 +136,7 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 600;
     return GradientScaffold(
       child: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -172,13 +173,13 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: isCompact ? 16 : 20),
                         AnimatedEntrance(
                           delay: const Duration(milliseconds: 120),
                           child: GlassPanel(
                             child: Wrap(
-                              runSpacing: 14,
-                              spacing: 14,
+                              runSpacing: isCompact ? 10 : 14,
+                              spacing: isCompact ? 10 : 14,
                               crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
                                 _InfoTile(
@@ -214,7 +215,7 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: isCompact ? 16 : 20),
                         AnimatedEntrance(
                           delay: const Duration(milliseconds: 200),
                           child: GlassPanel(
@@ -230,7 +231,7 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
                                     color: AppTheme.textSecondary,
                                   ),
                                 ),
-                                const SizedBox(height: 20),
+                                SizedBox(height: isCompact ? 16 : 20),
                                 LayoutBuilder(
                                   builder: (context, constraints) {
                                     final isWide = constraints.maxWidth > 720;
@@ -256,8 +257,8 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
                                             ),
                                           ),
                                           SizedBox(
-                                            width: isWide ? 16 : 0,
-                                            height: isWide ? 0 : 16,
+                                            width: isWide ? 12 : 0,
+                                            height: isWide ? 0 : 12,
                                           ),
                                           Expanded(
                                             child: _ActionCard(
@@ -292,7 +293,7 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
                                     );
                                   },
                                 ),
-                                const SizedBox(height: 16),
+                                SizedBox(height: isCompact ? 12 : 16),
                                 OutlinedButton.icon(
                                   onPressed: () {
                                     Navigator.pushNamed(
@@ -331,26 +332,27 @@ class _InfoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 600;
     return Container(
-      constraints: const BoxConstraints(minWidth: 220),
-      padding: const EdgeInsets.all(16),
+      constraints: BoxConstraints(minWidth: isCompact ? 180 : 220),
+      padding: EdgeInsets.all(isCompact ? 12 : 16),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(isCompact ? 18 : 22),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            height: 44,
-            width: 44,
+            height: isCompact ? 38 : 44,
+            width: isCompact ? 38 : 44,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(isCompact ? 12 : 14),
             ),
             child: Icon(icon, color: color),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: isCompact ? 10 : 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -387,9 +389,10 @@ class _ActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 600;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 240),
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isCompact ? 16 : 20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -399,21 +402,21 @@ class _ActionCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(isCompact ? 20 : 26),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            height: 52,
-            width: 52,
+            height: isCompact ? 44 : 52,
+            width: isCompact ? 44 : 52,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(isCompact ? 14 : 18),
             ),
             child: Icon(icon, color: color),
           ),
-          const SizedBox(height: 18),
+          SizedBox(height: isCompact ? 14 : 18),
           Text(title, style: AppTheme.headingSmall),
           const SizedBox(height: 8),
           Text(
@@ -422,7 +425,7 @@ class _ActionCard extends StatelessWidget {
               color: AppTheme.textSecondary,
             ),
           ),
-          const SizedBox(height: 18),
+          SizedBox(height: isCompact ? 14 : 18),
           if (onTap == null)
             StatusPill(
               label: buttonLabel,

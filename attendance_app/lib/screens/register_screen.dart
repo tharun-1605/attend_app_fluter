@@ -109,7 +109,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isWide = MediaQuery.sizeOf(context).width > 860;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isWide = screenWidth > 860;
+    final isCompact = screenWidth < 600;
     final hero = AnimatedEntrance(
       delay: const Duration(milliseconds: 40),
       child: HeroBanner(
@@ -118,16 +120,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
             'Owners can set up their company, while employees can join quickly with a company ID and start attendance without friction.',
         icon: Icons.groups_2_rounded,
         leading: Container(
-          height: 56,
-          width: 56,
+          height: isCompact ? 48 : 56,
+          width: isCompact ? 48 : 56,
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.16),
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(isCompact ? 14 : 18),
           ),
-          child: const AppLogoMark(
-            size: 56,
-            padding: EdgeInsets.all(8),
-            borderRadius: 18,
+          child: AppLogoMark(
+            size: isCompact ? 48 : 56,
+            padding: EdgeInsets.all(isCompact ? 7 : 8),
+            borderRadius: isCompact ? 14 : 18,
           ),
         ),
         trailing: StatusPill(
@@ -142,7 +144,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final formPanel = AnimatedEntrance(
       delay: const Duration(milliseconds: 140),
       child: GlassPanel(
-        padding: const EdgeInsets.all(28),
+        padding: EdgeInsets.all(isCompact ? 18 : 24),
         child: Form(
           key: _formKey,
           child: Column(
@@ -174,11 +176,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   color: AppTheme.textSecondary,
                 ),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: isCompact ? 18 : 22),
               SegmentedButton<String>(
                 style: ButtonStyle(
                   padding: WidgetStateProperty.all(
-                    const EdgeInsets.symmetric(vertical: 12),
+                    EdgeInsets.symmetric(vertical: isCompact ? 8 : 12),
                   ),
                 ),
                 segments: const [
@@ -200,7 +202,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   });
                 },
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 16),
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(
@@ -333,7 +335,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                       ),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: isCompact ? 18 : 20),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 220),
                 child: _isLoading
@@ -359,7 +361,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return GradientScaffold(
       child: ResponsiveContent(
         maxWidth: 1160,
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+        padding: EdgeInsets.fromLTRB(
+          isCompact ? 14 : 20,
+          isCompact ? 14 : 24,
+          isCompact ? 14 : 20,
+          isCompact ? 18 : 24,
+        ),
         child: SingleChildScrollView(
           child: isWide
               ? Row(
@@ -374,7 +381,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     hero,
-                    const SizedBox(height: 24),
+                    SizedBox(height: isCompact ? 16 : 24),
                     formPanel,
                   ],
                 ),

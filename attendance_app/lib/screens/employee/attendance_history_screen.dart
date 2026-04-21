@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '../../config/theme.dart';
-import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../models/attendance_model.dart';
+import '../../widgets/modern_ui.dart';
 
 class AttendanceHistoryScreen extends StatefulWidget {
   const AttendanceHistoryScreen({super.key});
@@ -15,7 +15,6 @@ class AttendanceHistoryScreen extends StatefulWidget {
 }
 
 class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
-  final _authService = AuthService();
   final _firestoreService = FirestoreService();
 
   List<AttendanceModel> _attendanceList = [];
@@ -56,41 +55,89 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Attendance History')),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _attendanceList.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+    return GradientScaffold(
+      child: ResponsiveContent(
+        maxWidth: 980,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(bottom: 14),
+              child: Text('Attendance History', style: AppTheme.headingMedium),
+            ),
+            GlassPanel(
+              child: Row(
                 children: [
-                  const Icon(
-                    Icons.history,
-                    size: 60,
-                    color: AppTheme.textSecondary,
+                  Container(
+                    height: 42,
+                    width: 42,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.history_rounded,
+                      color: AppTheme.primaryColor,
+                    ),
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No attendance records yet',
-                    style: AppTheme.bodyLarge.copyWith(
-                      color: AppTheme.textSecondary,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Recent records', style: AppTheme.headingSmall),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_attendanceList.length} entries available',
+                          style: AppTheme.bodyMedium.copyWith(
+                            color: AppTheme.textSecondary,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            )
-          : RefreshIndicator(
-              onRefresh: _loadAttendanceHistory,
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: _attendanceList.length,
-                itemBuilder: (context, index) {
-                  final attendance = _attendanceList[index];
-                  return _buildAttendanceCard(attendance);
-                },
-              ),
             ),
+            const SizedBox(height: 14),
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _attendanceList.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.history,
+                                size: 56,
+                                color: AppTheme.textSecondary,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'No attendance records yet',
+                                style: AppTheme.bodyLarge.copyWith(
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _loadAttendanceHistory,
+                          child: ListView.builder(
+                            padding: EdgeInsets.zero,
+                            itemCount: _attendanceList.length,
+                            itemBuilder: (context, index) {
+                              final attendance = _attendanceList[index];
+                              return _buildAttendanceCard(attendance);
+                            },
+                          ),
+                        ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -99,9 +146,9 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     final timeFormat = DateFormat('hh:mm a');
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -119,11 +166,11 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                   ),
                   decoration: BoxDecoration(
                     color: attendance.status == 'present'
-                        ? AppTheme.successColor.withOpacity(0.1)
+                        ? AppTheme.successColor.withValues(alpha: 0.1)
                         : attendance.status == 'late'
-                        ? AppTheme.accentColor.withOpacity(0.1)
-                        : AppTheme.errorColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
+                        ? AppTheme.accentColor.withValues(alpha: 0.1)
+                        : AppTheme.errorColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
                     _statusLabel(attendance.status),
