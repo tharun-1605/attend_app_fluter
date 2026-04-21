@@ -254,6 +254,20 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
       double? longitude;
 
       if (company.latitude != null && company.longitude != null) {
+        final isLocationServiceEnabled =
+            await _locationService.isLocationServiceEnabled();
+        if (!isLocationServiceEnabled) {
+          if (mounted) {
+            setState(() {
+              _statusMessage = 'Turn on location to mark attendance';
+              _isMarkingAttendance = false;
+            });
+            _showLocationTurnOnDialog();
+            _startImageStream();
+          }
+          return;
+        }
+
         final locationInfo = await _locationService.getLocationInfo();
         if (locationInfo != null) {
           latitude = locationInfo['latitude'];
@@ -450,6 +464,31 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
               Navigator.pop(context);
             },
             child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLocationTurnOnDialog() {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Location is turned off'),
+        content: const Text(
+          'Please turn on device location to mark attendance at your company location.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              await _locationService.openLocationSettings();
+            },
+            child: const Text('Turn On Location'),
           ),
         ],
       ),
