@@ -214,33 +214,65 @@ class FirestoreService {
     String companyId, {
     DateTime? date,
   }) async {
+    if (date != null) {
+      final startOfDay = DateTime(date.year, date.month, date.day);
+      final endOfDay = startOfDay.add(const Duration(days: 1));
+      return getAttendanceByCompanyRange(
+        companyId,
+        startDate: startOfDay,
+        endDate: endOfDay,
+      );
+    }
+
     try {
-      QuerySnapshot snapshot;
-
-      if (date != null) {
-        DateTime startOfDay = DateTime(date.year, date.month, date.day);
-        DateTime endOfDay = startOfDay.add(const Duration(days: 1));
-
-        snapshot = await _firestore
-            .collection('attendance')
-            .where('companyId', isEqualTo: companyId)
-            .where('checkInTime', isGreaterThan: startOfDay.toIso8601String())
-            .where('checkInTime', isLessThan: endOfDay.toIso8601String())
-            .orderBy('checkInTime', descending: true)
-            .get();
-      } else {
-        snapshot = await _firestore
-            .collection('attendance')
-            .where('companyId', isEqualTo: companyId)
-            .orderBy('checkInTime', descending: true)
-            .limit(100)
-            .get();
-      }
+      final snapshot = await _firestore
+          .collection('attendance')
+          .where('companyId', isEqualTo: companyId)
+          .orderBy('checkInTime', descending: true)
+          .limit(100)
+          .get();
 
       return snapshot.docs
           .map(
-            (doc) =>
-                AttendanceModel.fromMap(doc.data() as Map<String, dynamic>),
+            (doc) => AttendanceModel.fromMap(doc.data()),
+          )
+          .toList();
+    } on FirebaseException catch (e) {
+      // Fallback for missing composite index: query by company only and filter/sort locally.
+      if (e.code != 'failed-precondition') rethrow;
+
+      final baseSnapshot = await _firestore
+          .collection('attendance')
+          .where('companyId', isEqualTo: companyId)
+          .limit(1000)
+          .get();
+
+      final records = baseSnapshot.docs
+          .map((doc) => AttendanceModel.fromMap(doc.data()))
+          .toList()
+        ..sort((a, b) => b.checkInTime.compareTo(a.checkInTime));
+
+      return records.length > 100 ? records.take(100).toList() : records;
+    }
+  }
+
+  Future<List<AttendanceModel>> getAttendanceByCompanyRange(
+    String companyId, {
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    try {
+      final snapshot = await _firestore
+          .collection('attendance')
+          .where('companyId', isEqualTo: companyId)
+          .where('checkInTime', isGreaterThanOrEqualTo: startDate.toIso8601String())
+          .where('checkInTime', isLessThan: endDate.toIso8601String())
+          .orderBy('checkInTime', descending: true)
+          .get();
+
+      return snapshot.docs
+          .map(
+            (doc) => AttendanceModel.fromMap(doc.data()),
           )
           .toList();
     } on FirebaseException catch (e) {
@@ -257,23 +289,39 @@ class FirestoreService {
           .map((doc) => AttendanceModel.fromMap(doc.data()))
           .toList();
 
-      if (date != null) {
-        final startOfDay = DateTime(date.year, date.month, date.day);
-        final endOfDay = startOfDay.add(const Duration(days: 1));
-        records = records
-            .where(
-              (a) =>
-                  !a.checkInTime.isBefore(startOfDay) &&
-                  a.checkInTime.isBefore(endOfDay),
-            )
-            .toList();
-      }
+      records = records
+          .where(
+            (a) =>
+                !a.checkInTime.isBefore(startDate) &&
+                a.checkInTime.isBefore(endDate),
+          )
+          .toList();
 
       records.sort((a, b) => b.checkInTime.compareTo(a.checkInTime));
-      return date == null && records.length > 100
-          ? records.take(100).toList()
-          : records;
+      return records;
     }
+  }
+
+  Future<List<UserModel>> getAbsentEmployeesForDate(
+    String companyId,
+    DateTime date,
+  ) async {
+    final employees = await getEmployeesByCompany(companyId);
+    if (employees.isEmpty) return [];
+
+    final startOfDay = DateTime(date.year, date.month, date.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+    final attendance = await getAttendanceByCompanyRange(
+      companyId,
+      startDate: startOfDay,
+      endDate: endOfDay,
+    );
+
+    final presentUserIds = attendance.map((item) => item.userId).toSet();
+    return employees
+        .where((employee) => !presentUserIds.contains(employee.id))
+        .toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
   }
 
   // Storage methods

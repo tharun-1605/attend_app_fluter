@@ -14,12 +14,14 @@ import 'screens/owner/company_settings_screen.dart';
 import 'screens/owner/employee_list_screen.dart';
 import 'screens/owner/attendance_report_screen.dart';
 import 'screens/owner/today_attendance_screen.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize Firebase
   await Firebase.initializeApp();
+  await NotificationService.instance.initialize();
 
   runApp(const MyApp());
 }

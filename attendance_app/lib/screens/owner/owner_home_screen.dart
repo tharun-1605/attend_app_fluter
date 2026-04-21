@@ -8,6 +8,7 @@ import '../../models/company_model.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/notification_service.dart';
 import '../../widgets/modern_ui.dart';
 
 class OwnerHomeScreen extends StatefulWidget {
@@ -24,6 +25,7 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> {
   CompanyModel? _company;
   bool _isLoading = true;
   Map<String, int>? _todayStats;
+  List<UserModel> _absentEmployees = [];
   String? _loadError;
 
   @override
@@ -64,9 +66,14 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> {
         });
 
         Map<String, int>? stats;
+        List<UserModel> absentEmployees = [];
         if (company != null) {
           try {
             stats = await _firestoreService.getAttendanceStats(
+              company.id,
+              DateTime.now(),
+            );
+            absentEmployees = await _firestoreService.getAbsentEmployeesForDate(
               company.id,
               DateTime.now(),
             );
@@ -91,7 +98,18 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> {
         if (!mounted) return;
         setState(() {
           _todayStats = stats;
+          _absentEmployees = absentEmployees;
         });
+
+        if (company != null &&
+            absentEmployees.isNotEmpty &&
+            _isPastWorkingStart(company.workingStartTime)) {
+          await NotificationService.instance.showOwnerMissedAttendanceAlert(
+            ownerId: userData.id,
+            missingEmployeeNames:
+                absentEmployees.map((employee) => employee.name).toList(),
+          );
+        }
       } else {
         if (!mounted) return;
         setState(() {
@@ -422,6 +440,15 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> {
                   color: AppTheme.textSecondary,
                 ),
               ),
+              if (_absentEmployees.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Missing check-ins: ${_absentEmployees.map((employee) => employee.name).take(4).join(', ')}${_absentEmployees.length > 4 ? ' and ${_absentEmployees.length - 4} more' : ''}',
+                  style: AppTheme.bodyMedium.copyWith(
+                    color: AppTheme.errorColor,
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 onPressed: () =>
@@ -432,8 +459,138 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> {
             ],
           ),
         ),
+        const SizedBox(height: 14),
+        GlassPanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Report filters', style: AppTheme.headingSmall),
+              const SizedBox(height: 8),
+              Text(
+                'Jump straight into the report view you need most.',
+                style: AppTheme.bodyMedium.copyWith(
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  _FilterShortcutChip(
+                    label: 'Today',
+                    icon: Icons.today_rounded,
+                    color: AppTheme.primaryColor,
+                    onTap: () => _openReportShortcut(
+                      context,
+                      period: 'today',
+                      recordFilter: 'all',
+                    ),
+                  ),
+                  _FilterShortcutChip(
+                    label: 'Weekly',
+                    icon: Icons.view_week_rounded,
+                    color: AppTheme.accentColor,
+                    onTap: () => _openReportShortcut(
+                      context,
+                      period: 'week',
+                      recordFilter: 'all',
+                    ),
+                  ),
+                  _FilterShortcutChip(
+                    label: 'Monthly',
+                    icon: Icons.calendar_month_rounded,
+                    color: AppTheme.primaryDark,
+                    onTap: () => _openReportShortcut(
+                      context,
+                      period: 'month',
+                      recordFilter: 'all',
+                    ),
+                  ),
+                  _FilterShortcutChip(
+                    label: 'Late',
+                    icon: Icons.alarm_rounded,
+                    color: AppTheme.warningColor,
+                    onTap: () => _openReportShortcut(
+                      context,
+                      period: 'today',
+                      recordFilter: 'late',
+                    ),
+                  ),
+                  _FilterShortcutChip(
+                    label: 'Invalid location',
+                    icon: Icons.location_off_rounded,
+                    color: AppTheme.errorColor,
+                    onTap: () => _openReportShortcut(
+                      context,
+                      period: 'today',
+                      recordFilter: 'invalid',
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ],
     );
+  }
+
+  void _openReportShortcut(
+    BuildContext context, {
+    required String period,
+    required String recordFilter,
+  }) {
+    Navigator.pushNamed(
+      context,
+      AppRoutes.attendanceReport,
+      arguments: {
+        'period': period,
+        'recordFilter': recordFilter,
+      },
+    );
+  }
+
+  bool _isPastWorkingStart(String? workingStartTime) {
+    if (workingStartTime == null || workingStartTime.trim().isEmpty) {
+      return DateTime.now().hour >= 9;
+    }
+
+    final normalizedTime = workingStartTime.trim().toUpperCase();
+    final twelveHourMatch = RegExp(
+      r'^(\d{1,2}):(\d{2})\s*(AM|PM)$',
+    ).firstMatch(normalizedTime);
+    if (twelveHourMatch != null) {
+      final hour = int.parse(twelveHourMatch.group(1)!);
+      final minute = int.parse(twelveHourMatch.group(2)!);
+      final meridiem = twelveHourMatch.group(3)!;
+      var convertedHour = hour % 12;
+      if (meridiem == 'PM') {
+        convertedHour += 12;
+      }
+      final now = DateTime.now();
+      final startTime = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        convertedHour,
+        minute,
+      );
+      return !now.isBefore(startTime);
+    }
+
+    final twentyFourHourMatch = RegExp(
+      r'^(\d{1,2}):(\d{2})$',
+    ).firstMatch(normalizedTime);
+    if (twentyFourHourMatch == null) {
+      return DateTime.now().hour >= 9;
+    }
+
+    final hour = int.parse(twentyFourHourMatch.group(1)!);
+    final minute = int.parse(twentyFourHourMatch.group(2)!);
+    final now = DateTime.now();
+    final startTime = DateTime(now.year, now.month, now.day, hour, minute);
+    return !now.isBefore(startTime);
   }
 
   Widget _buildMenuCard(
@@ -532,6 +689,35 @@ class _StatCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _FilterShortcutChip extends StatelessWidget {
+  const _FilterShortcutChip({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionChip(
+      avatar: Icon(icon, size: 18, color: color),
+      label: Text(label),
+      backgroundColor: color.withValues(alpha: 0.12),
+      side: BorderSide(color: color.withValues(alpha: 0.24)),
+      labelStyle: AppTheme.bodyMedium.copyWith(
+        color: color,
+        fontWeight: FontWeight.w700,
+      ),
+      onPressed: onTap,
     );
   }
 }

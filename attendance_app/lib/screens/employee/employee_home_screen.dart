@@ -5,6 +5,8 @@ import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
+import '../../services/firestore_service.dart';
+import '../../services/notification_service.dart';
 import '../../widgets/modern_ui.dart';
 
 class EmployeeHomeScreen extends StatefulWidget {
@@ -16,8 +18,11 @@ class EmployeeHomeScreen extends StatefulWidget {
 
 class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
   final _authService = AuthService();
+  final _firestoreService = FirestoreService();
+
   UserModel? _user;
   bool _isLoading = true;
+  bool _hasMarkedAttendanceToday = false;
 
   @override
   void initState() {
@@ -30,9 +35,34 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         final userData = await _authService.getUserData(user.uid);
+        if (userData != null && userData.companyId != null) {
+          final company = await _firestoreService.getCompany(userData.companyId!);
+          final todayAttendance = await _firestoreService.getTodayAttendance(
+            userData.id,
+          );
+          final hasMarkedAttendanceToday = todayAttendance != null;
+
+          if (!hasMarkedAttendanceToday &&
+              _isPastReminderTime(company?.workingStartTime)) {
+            await NotificationService.instance.showEmployeeCheckInReminder(
+              userId: userData.id,
+              employeeName: userData.name,
+            );
+          }
+
+          if (!mounted) return;
+          setState(() {
+            _user = userData;
+            _hasMarkedAttendanceToday = hasMarkedAttendanceToday;
+            _isLoading = false;
+          });
+          return;
+        }
+
         if (!mounted) return;
         setState(() {
           _user = userData;
+          _hasMarkedAttendanceToday = false;
           _isLoading = false;
         });
         return;
@@ -60,6 +90,48 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
         ),
       );
     }
+  }
+
+  bool _isPastReminderTime(String? workingStartTime) {
+    if (workingStartTime == null || workingStartTime.trim().isEmpty) {
+      return DateTime.now().hour >= 9;
+    }
+
+    final normalizedTime = workingStartTime.trim().toUpperCase();
+    final twelveHourMatch = RegExp(
+      r'^(\d{1,2}):(\d{2})\s*(AM|PM)$',
+    ).firstMatch(normalizedTime);
+    if (twelveHourMatch != null) {
+      final hour = int.parse(twelveHourMatch.group(1)!);
+      final minute = int.parse(twelveHourMatch.group(2)!);
+      final meridiem = twelveHourMatch.group(3)!;
+      var convertedHour = hour % 12;
+      if (meridiem == 'PM') {
+        convertedHour += 12;
+      }
+      final now = DateTime.now();
+      final reminderTime = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        convertedHour,
+        minute,
+      );
+      return !now.isBefore(reminderTime);
+    }
+
+    final twentyFourHourMatch = RegExp(
+      r'^(\d{1,2}):(\d{2})$',
+    ).firstMatch(normalizedTime);
+    if (twentyFourHourMatch == null) {
+      return DateTime.now().hour >= 9;
+    }
+
+    final hour = int.parse(twentyFourHourMatch.group(1)!);
+    final minute = int.parse(twentyFourHourMatch.group(2)!);
+    final now = DateTime.now();
+    final reminderTime = DateTime(now.year, now.month, now.day, hour, minute);
+    return !now.isBefore(reminderTime);
   }
 
   @override
@@ -126,6 +198,18 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
                                       ? AppTheme.successColor
                                       : AppTheme.warningColor,
                                 ),
+                                _InfoTile(
+                                  icon: _hasMarkedAttendanceToday
+                                      ? Icons.fact_check_rounded
+                                      : Icons.notifications_active_rounded,
+                                  title: 'Today',
+                                  value: _hasMarkedAttendanceToday
+                                      ? 'Attendance already marked'
+                                      : 'Attendance still pending',
+                                  color: _hasMarkedAttendanceToday
+                                      ? AppTheme.successColor
+                                      : AppTheme.warningColor,
+                                ),
                               ],
                             ),
                           ),
@@ -159,54 +243,55 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
                                             child: _ActionCard(
                                               title: 'Mark Attendance',
                                               subtitle:
-                                                'Use face verification to check in or check out securely.',
-                                            icon: Icons.camera_alt_rounded,
-                                            color: AppTheme.primaryColor,
-                                            buttonLabel: 'Open camera',
-                                            onTap: () {
-                                              Navigator.pushNamed(
-                                                context,
-                                                AppRoutes.faceLogin,
-                                              );
-                                            },
+                                                  'Use face verification to check in or check out securely.',
+                                              icon: Icons.camera_alt_rounded,
+                                              color: AppTheme.primaryColor,
+                                              buttonLabel: 'Open camera',
+                                              onTap: () {
+                                                Navigator.pushNamed(
+                                                  context,
+                                                  AppRoutes.faceLogin,
+                                                );
+                                              },
+                                            ),
                                           ),
-                                        ),
-                                        SizedBox(
-                                          width: isWide ? 16 : 0,
-                                          height: isWide ? 0 : 16,
-                                        ),
-                                        Expanded(
-                                          child: _ActionCard(
-                                            title: _user!.isFaceRegistered
-                                                ? 'Face Registered'
-                                                : 'Register Face',
-                                            subtitle: _user!.isFaceRegistered
-                                                ? 'Your profile is verified and ready for attendance.'
-                                                : 'Complete your face setup before using attendance.',
-                                            icon: _user!.isFaceRegistered
-                                                ? Icons.check_circle_rounded
-                                                : Icons.face_retouching_natural,
-                                            color: _user!.isFaceRegistered
-                                                ? AppTheme.successColor
-                                                : AppTheme.accentColor,
-                                            buttonLabel: _user!.isFaceRegistered
-                                                ? 'View status'
-                                                : 'Register now',
-                                            onTap: _user!.isFaceRegistered
-                                                ? null
-                                                : () {
-                                                    Navigator.pushNamed(
-                                                      context,
-                                                      AppRoutes.faceRegister,
-                                                    );
-                                                  },
+                                          SizedBox(
+                                            width: isWide ? 16 : 0,
+                                            height: isWide ? 0 : 16,
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                              ),
+                                          Expanded(
+                                            child: _ActionCard(
+                                              title: _user!.isFaceRegistered
+                                                  ? 'Face Registered'
+                                                  : 'Register Face',
+                                              subtitle: _user!.isFaceRegistered
+                                                  ? 'Your profile is verified and ready for attendance.'
+                                                  : 'Complete your face setup before using attendance.',
+                                              icon: _user!.isFaceRegistered
+                                                  ? Icons.check_circle_rounded
+                                                  : Icons.face_retouching_natural,
+                                              color: _user!.isFaceRegistered
+                                                  ? AppTheme.successColor
+                                                  : AppTheme.accentColor,
+                                              buttonLabel:
+                                                  _user!.isFaceRegistered
+                                                      ? 'View status'
+                                                      : 'Register now',
+                                              onTap: _user!.isFaceRegistered
+                                                  ? null
+                                                  : () {
+                                                      Navigator.pushNamed(
+                                                        context,
+                                                        AppRoutes.faceRegister,
+                                                      );
+                                                    },
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
                                 const SizedBox(height: 16),
                                 OutlinedButton.icon(
                                   onPressed: () {
