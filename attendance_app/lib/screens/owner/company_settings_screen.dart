@@ -32,6 +32,7 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
 
   bool _isLoading = false;
   bool _isSaving = false;
+  bool _isEditing = false;
   UserModel? _user;
   CompanyModel? _company;
   double? _currentLatitude;
@@ -72,8 +73,19 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
 
             setState(() {
               _company = company;
+              _currentLatitude = company.latitude;
+              _currentLongitude = company.longitude;
+              _isEditing = false;
+            });
+          } else {
+            setState(() {
+              _isEditing = true;
             });
           }
+        } else if (mounted) {
+          setState(() {
+            _isEditing = true;
+          });
         }
       }
     } on FirebaseException catch (e) {
@@ -199,9 +211,11 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
         throw StateError('User profile missing while saving company.');
       }
 
+      CompanyModel savedCompany;
+
       if (_company != null) {
         // Update existing company
-        final updatedCompany = _company!.copyWith(
+        savedCompany = _company!.copyWith(
           name: _companyNameController.text.trim(),
           address: _addressController.text.trim(),
           latitude: _currentLatitude,
@@ -212,13 +226,13 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
         );
 
         await _firestoreService
-            .updateCompany(updatedCompany)
+            .updateCompany(savedCompany)
             .timeout(_requestTimeout);
       } else {
         // Create new company - use Firebase generated ID instead of relying on user's companyId
         // This fixes the null check operator error when user doesn't have a companyId yet
         final companyDocRef = _firestoreService.createCompanyDoc();
-        final newCompany = CompanyModel(
+        savedCompany = CompanyModel(
           id: companyDocRef.id,
           name: _companyNameController.text.trim(),
           ownerId: currentUser.id,
@@ -232,22 +246,26 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
         );
 
         await _firestoreService
-            .createCompany(newCompany)
+            .createCompany(savedCompany)
             .timeout(_requestTimeout);
 
         // Update user's companyId after company is created
         final updatedUser = currentUser.copyWith(companyId: companyDocRef.id);
         await _authService.updateUserData(updatedUser).timeout(_requestTimeout);
+        _user = updatedUser;
       }
 
       if (mounted) {
+        setState(() {
+          _company = savedCompany;
+          _isEditing = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Company settings saved successfully'),
+            content: Text('Company saved successfully'),
             backgroundColor: AppTheme.successColor,
           ),
         );
-        Navigator.pop(context);
       }
     } on FirebaseException catch (e) {
       if (mounted) {
@@ -304,162 +322,258 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Company Settings')),
+      appBar: AppBar(
+        title: const Text('Company Settings'),
+        actions: [
+          if (_company != null && !_isEditing)
+            TextButton.icon(
+              onPressed: () {
+                setState(() {
+                  _isEditing = true;
+                });
+              },
+              icon: const Icon(Icons.edit),
+              label: const Text('Edit'),
+            ),
+        ],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Company Name
-                    TextFormField(
-                      controller: _companyNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Company Name',
-                        prefixIcon: Icon(Icons.business),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter company name';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Address
-                    TextFormField(
-                      controller: _addressController,
-                      decoration: const InputDecoration(
-                        labelText: 'Address',
-                        prefixIcon: Icon(Icons.location_on),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Location Section
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Company Location',
-                              style: AppTheme.headingSmall,
-                            ),
-                            const SizedBox(height: 8),
-                            if (_currentLatitude != null &&
-                                _currentLongitude != null)
-                              Text(
-                                'Lat: ${_currentLatitude!.toStringAsFixed(6)}, Lng: ${_currentLongitude!.toStringAsFixed(6)}',
-                                style: AppTheme.bodyMedium,
-                              )
-                            else
-                              Text(
-                                'Location not set',
-                                style: AppTheme.bodyMedium.copyWith(
-                                  color: AppTheme.errorColor,
-                                ),
-                              ),
-                            const SizedBox(height: 12),
-                            ElevatedButton.icon(
-                              onPressed: _getCurrentLocation,
-                              icon: const Icon(Icons.my_location),
-                              label: const Text('Get Current Location'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Radius
-                    TextFormField(
-                      controller: _radiusController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Radius (meters)',
-                        prefixIcon: Icon(Icons.radar),
-                        helperText:
-                            'Attendance will be valid within this radius',
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter radius';
-                        }
-                        if (double.tryParse(value) == null) {
-                          return 'Please enter a valid number';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Working Hours
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: _startTimeController,
+              child: _company != null && !_isEditing
+                  ? _buildCompanyDetails()
+                  : Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          TextFormField(
+                            controller: _companyNameController,
                             decoration: const InputDecoration(
-                              labelText: 'Start Time',
-                              prefixIcon: Icon(Icons.access_time),
+                              labelText: 'Company Name',
+                              prefixIcon: Icon(Icons.business),
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Required';
+                                return 'Please enter company name';
                               }
                               return null;
                             },
                           ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: TextFormField(
-                            controller: _endTimeController,
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _addressController,
                             decoration: const InputDecoration(
-                              labelText: 'End Time',
-                              prefixIcon: Icon(Icons.access_time),
+                              labelText: 'Address',
+                              prefixIcon: Icon(Icons.location_on),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Company Location',
+                                    style: AppTheme.headingSmall,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  if (_currentLatitude != null &&
+                                      _currentLongitude != null)
+                                    Text(
+                                      'Lat: ${_currentLatitude!.toStringAsFixed(6)}, Lng: ${_currentLongitude!.toStringAsFixed(6)}',
+                                      style: AppTheme.bodyMedium,
+                                    )
+                                  else
+                                    Text(
+                                      'Location not set',
+                                      style: AppTheme.bodyMedium.copyWith(
+                                        color: AppTheme.errorColor,
+                                      ),
+                                    ),
+                                  const SizedBox(height: 12),
+                                  ElevatedButton.icon(
+                                    onPressed: _getCurrentLocation,
+                                    icon: const Icon(Icons.my_location),
+                                    label: Text(
+                                      _currentLatitude != null &&
+                                              _currentLongitude != null
+                                          ? 'Update Location'
+                                          : 'Get Current Location',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _radiusController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Radius (meters)',
+                              prefixIcon: Icon(Icons.radar),
+                              helperText:
+                                  'Attendance will be valid within this radius',
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Required';
+                                return 'Please enter radius';
+                              }
+                              if (double.tryParse(value) == null) {
+                                return 'Please enter a valid number';
                               }
                               return null;
                             },
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Save Button
-                    ElevatedButton(
-                      onPressed: _isSaving ? null : _saveCompany,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      child: _isSaving
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _startTimeController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Start Time',
+                                    prefixIcon: Icon(Icons.access_time),
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Required';
+                                    }
+                                    return null;
+                                  },
                                 ),
                               ),
-                            )
-                          : const Text('Save Settings'),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _endTimeController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'End Time',
+                                    prefixIcon: Icon(Icons.access_time),
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Required';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          ElevatedButton(
+                            onPressed: _isSaving ? null : _saveCompany,
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                            child: _isSaving
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                : Text(
+                                    _company == null
+                                        ? 'Save Company'
+                                        : 'Save Changes',
+                                  ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
-                ),
-              ),
             ),
+    );
+  }
+
+  Widget _buildCompanyDetails() {
+    final company = _company;
+    if (company == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(company.name, style: AppTheme.headingMedium),
+                const SizedBox(height: 16),
+                _buildDetailRow(
+                  Icons.location_on,
+                  'Address',
+                  (company.address?.isNotEmpty ?? false)
+                      ? company.address!
+                      : 'Not added',
+                ),
+                const SizedBox(height: 12),
+                _buildDetailRow(
+                  Icons.my_location,
+                  'Location',
+                  company.latitude != null && company.longitude != null
+                      ? '${company.latitude!.toStringAsFixed(6)}, ${company.longitude!.toStringAsFixed(6)}'
+                      : 'Not added',
+                ),
+                const SizedBox(height: 12),
+                _buildDetailRow(
+                  Icons.radar,
+                  'Allowed Radius',
+                  '${company.radiusInMeters.toStringAsFixed(0)} meters',
+                ),
+                const SizedBox(height: 12),
+                _buildDetailRow(
+                  Icons.access_time,
+                  'Working Hours',
+                  '${company.workingStartTime ?? '09:00'} - ${company.workingEndTime ?? '18:00'}',
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        ElevatedButton.icon(
+          onPressed: () {
+            setState(() {
+              _isEditing = true;
+            });
+          },
+          icon: const Icon(Icons.edit),
+          label: const Text('Edit Company Settings'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: AppTheme.primaryColor),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: AppTheme.bodySmall),
+              const SizedBox(height: 2),
+              Text(value, style: AppTheme.bodyMedium),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

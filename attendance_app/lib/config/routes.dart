@@ -10,6 +10,7 @@ import '../screens/owner/owner_home_screen.dart';
 import '../screens/owner/company_settings_screen.dart';
 import '../screens/owner/employee_list_screen.dart';
 import '../screens/owner/attendance_report_screen.dart';
+import '../screens/owner/today_attendance_screen.dart';
 
 class AppRoutes {
   static const String splash = '/';
@@ -23,6 +24,7 @@ class AppRoutes {
   static const String companySettings = '/owner/company-settings';
   static const String employeeList = '/owner/employee-list';
   static const String attendanceReport = '/owner/attendance-report';
+  static const String todayAttendance = '/owner/today-attendance';
 
   static Map<String, WidgetBuilder> get routes => {
     splash: (context) => const SplashScreen(),
@@ -36,5 +38,6 @@ class AppRoutes {
     companySettings: (context) => const CompanySettingsScreen(),
     employeeList: (context) => const EmployeeListScreen(),
     attendanceReport: (context) => const AttendanceReportScreen(),
+    todayAttendance: (context) => const TodayAttendanceScreen(),
   };
 }

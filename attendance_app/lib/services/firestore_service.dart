@@ -149,6 +149,49 @@ class FirestoreService {
     }
   }
 
+  Future<AttendanceModel?> getOpenAttendance(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('attendance')
+          .where('userId', isEqualTo: userId)
+          .where('checkOutTime', isNull: true)
+          .limit(20)
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        return null;
+      }
+
+      final openRecords = snapshot.docs
+          .map(
+            (doc) => AttendanceModel.fromMap(doc.data()),
+          )
+          .toList();
+      openRecords.sort((a, b) => b.checkInTime.compareTo(a.checkInTime));
+      return openRecords.first;
+    } on FirebaseException catch (e) {
+      if (e.code != 'failed-precondition') rethrow;
+
+      final baseSnapshot = await _firestore
+          .collection('attendance')
+          .where('userId', isEqualTo: userId)
+          .limit(200)
+          .get();
+
+      final openRecords = baseSnapshot.docs
+          .map((doc) => AttendanceModel.fromMap(doc.data()))
+          .where((attendance) => attendance.checkOutTime == null)
+          .toList();
+
+      if (openRecords.isEmpty) {
+        return null;
+      }
+
+      openRecords.sort((a, b) => b.checkInTime.compareTo(a.checkInTime));
+      return openRecords.first;
+    }
+  }
+
   Future<List<AttendanceModel>> getAttendanceByUser(
     String userId, {
     int limit = 30,

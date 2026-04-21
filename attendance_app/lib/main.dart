@@ -13,6 +13,7 @@ import 'screens/owner/owner_home_screen.dart';
 import 'screens/owner/company_settings_screen.dart';
 import 'screens/owner/employee_list_screen.dart';
 import 'screens/owner/attendance_report_screen.dart';
+import 'screens/owner/today_attendance_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,6 +47,7 @@ class MyApp extends StatelessWidget {
         AppRoutes.companySettings: (context) => const CompanySettingsScreen(),
         AppRoutes.employeeList: (context) => const EmployeeListScreen(),
         AppRoutes.attendanceReport: (context) => const AttendanceReportScreen(),
+        AppRoutes.todayAttendance: (context) => const TodayAttendanceScreen(),
       },
     );
   }

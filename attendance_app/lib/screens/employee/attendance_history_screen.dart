@@ -126,7 +126,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    attendance.status.toUpperCase(),
+                    _statusLabel(attendance.status),
                     style: TextStyle(
                       color: attendance.status == 'present'
                           ? AppTheme.successColor
@@ -214,5 +214,18 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
         ),
       ),
     );
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'late':
+        return 'PRESENT (LATE)';
+      case 'present':
+        return 'PRESENT';
+      case 'invalid_location':
+        return 'INVALID LOCATION';
+      default:
+        return status.replaceAll('_', ' ').toUpperCase();
+    }
   }
 }

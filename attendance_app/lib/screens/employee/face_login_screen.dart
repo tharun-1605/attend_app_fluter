@@ -273,15 +273,24 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
         isValidLocation = true;
       }
 
-      // Check if already marked attendance today
+      final checkInTime = DateTime.now();
+
       final todayAttendance = await _firestoreService.getTodayAttendance(
         user.id,
       );
 
-      if (todayAttendance != null && todayAttendance.checkOutTime == null) {
-        // Already checked in, do checkout
-        final updatedAttendance = todayAttendance.copyWith(
-          checkOutTime: DateTime.now(),
+      if (todayAttendance != null && todayAttendance.checkOutTime != null) {
+        throw Exception(
+          'You have already completed check-in and check-out for today. You can check in again tomorrow.',
+        );
+      }
+
+      // Check if employee already has an open attendance cycle.
+      final openAttendance = await _firestoreService.getOpenAttendance(user.id);
+
+      if (openAttendance != null) {
+        final updatedAttendance = openAttendance.copyWith(
+          checkOutTime: checkInTime,
           checkOutLatitude: latitude,
           checkOutLongitude: longitude,
           checkOutLocation: latitude != null && longitude != null
@@ -301,14 +310,16 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
           userId: user.id,
           userName: user.name,
           companyId: user.companyId!,
-          checkInTime: DateTime.now(),
+          checkInTime: checkInTime,
           checkInLatitude: latitude,
           checkInLongitude: longitude,
           checkInLocation: latitude != null && longitude != null
               ? '$latitude,$longitude'
               : null,
           isValidLocation: isValidLocation,
-          status: isValidLocation ? 'present' : 'invalid_location',
+          status: isValidLocation
+              ? _getAttendanceStatus(company.workingStartTime, checkInTime)
+              : 'invalid_location',
         );
 
         await _firestoreService.createAttendance(attendance);
@@ -342,6 +353,69 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
         _startImageStream();
       }
     }
+  }
+
+  String _getAttendanceStatus(String? companyStartTime, DateTime checkInTime) {
+    final lateThreshold = _parseCompanyTime(companyStartTime, checkInTime);
+    if (lateThreshold == null) {
+      return 'present';
+    }
+
+    return checkInTime.isAfter(lateThreshold) ? 'late' : 'present';
+  }
+
+  DateTime? _parseCompanyTime(String? time, DateTime referenceDate) {
+    if (time == null || time.trim().isEmpty) {
+      return null;
+    }
+
+    final normalizedTime = time.trim().toUpperCase();
+    final twelveHourMatch = RegExp(
+      r'^(\d{1,2}):(\d{2})\s*(AM|PM)$',
+    ).firstMatch(normalizedTime);
+    if (twelveHourMatch != null) {
+      final hour = int.parse(twelveHourMatch.group(1)!);
+      final minute = int.parse(twelveHourMatch.group(2)!);
+      final meridiem = twelveHourMatch.group(3)!;
+
+      if (hour < 1 || hour > 12 || minute < 0 || minute > 59) {
+        return null;
+      }
+
+      var convertedHour = hour % 12;
+      if (meridiem == 'PM') {
+        convertedHour += 12;
+      }
+
+      return DateTime(
+        referenceDate.year,
+        referenceDate.month,
+        referenceDate.day,
+        convertedHour,
+        minute,
+      );
+    }
+
+    final twentyFourHourMatch = RegExp(
+      r'^(\d{1,2}):(\d{2})$',
+    ).firstMatch(normalizedTime);
+    if (twentyFourHourMatch == null) {
+      return null;
+    }
+
+    final hour = int.parse(twentyFourHourMatch.group(1)!);
+    final minute = int.parse(twentyFourHourMatch.group(2)!);
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+      return null;
+    }
+
+    return DateTime(
+      referenceDate.year,
+      referenceDate.month,
+      referenceDate.day,
+      hour,
+      minute,
+    );
   }
 
   void _showSuccessDialog(String message) {

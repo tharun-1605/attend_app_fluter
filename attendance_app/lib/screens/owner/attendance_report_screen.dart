@@ -123,7 +123,9 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                   child: _buildSummaryCard(
                     'Present',
                     _attendanceList
-                        .where((a) => a.status == 'present')
+                        .where(
+                          (a) => a.status == 'present' || a.status == 'late',
+                        )
                         .length
                         .toString(),
                     Icons.check_circle,
@@ -135,7 +137,9 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                   child: _buildSummaryCard(
                     'Invalid',
                     _attendanceList
-                        .where((a) => a.status != 'present')
+                        .where(
+                          (a) => a.status != 'present' && a.status != 'late',
+                        )
                         .length
                         .toString(),
                     Icons.warning,
@@ -215,17 +219,20 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: attendance.status == 'present'
+          backgroundColor:
+              attendance.status == 'present' || attendance.status == 'late'
               ? AppTheme.successColor
               : AppTheme.errorColor,
           child: Icon(
-            attendance.status == 'present' ? Icons.check : Icons.warning,
+            attendance.status == 'present' || attendance.status == 'late'
+                ? Icons.check
+                : Icons.warning,
             color: Colors.white,
           ),
         ),
         title: Text(attendance.userName),
         subtitle: Text(
-          'Check in: ${timeFormat.format(attendance.checkInTime)}',
+          'Check in: ${timeFormat.format(attendance.checkInTime)} - ${_statusLabel(attendance.status)}',
           style: AppTheme.bodySmall,
         ),
         trailing: Column(
@@ -254,5 +261,18 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         ),
       ),
     );
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'late':
+        return 'Present (Late)';
+      case 'present':
+        return 'Present';
+      case 'invalid_location':
+        return 'Invalid Location';
+      default:
+        return status.replaceAll('_', ' ');
+    }
   }
 }
