@@ -238,7 +238,52 @@ class HeroBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isCompact = MediaQuery.sizeOf(context).width < 600;
+    final width = MediaQuery.sizeOf(context).width;
+    final isCompact = width < 600;
+    final isNarrowPhone = width < 420;
+    final defaultLeading = leading ??
+        Container(
+          height: isCompact ? 48 : 56,
+          width: isCompact ? 48 : 56,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(isCompact ? 14 : 18),
+          ),
+          child: Icon(
+            icon,
+            color: Colors.white,
+            size: isCompact ? 22 : 28,
+          ),
+        );
+
+    final textBlock = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          maxLines: isNarrowPhone ? 4 : null,
+          overflow: TextOverflow.visible,
+          style: AppTheme.headingMedium.copyWith(
+            color: Colors.white,
+            fontSize: isNarrowPhone
+                ? 17
+                : isCompact
+                    ? 19
+                    : AppTheme.headingMedium.fontSize,
+            height: isNarrowPhone ? 1.15 : null,
+          ),
+        ),
+        SizedBox(height: isCompact ? 6 : 8),
+        Text(
+          subtitle,
+          style: AppTheme.bodyMedium.copyWith(
+            color: Colors.white.withValues(alpha: 0.86),
+            fontSize: isNarrowPhone ? 12 : null,
+          ),
+        ),
+      ],
+    );
+
     return Container(
       padding: EdgeInsets.all(isCompact ? 18 : 24),
       decoration: BoxDecoration(
@@ -252,51 +297,54 @@ class HeroBanner extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          leading ??
-              Container(
-                height: isCompact ? 48 : 56,
-                width: isCompact ? 48 : 56,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(isCompact ? 14 : 18),
-                ),
-                child: Icon(
-                  icon,
-                  color: Colors.white,
-                  size: isCompact ? 22 : 28,
-                ),
-              ),
-          SizedBox(width: isCompact ? 12 : 16),
-          Expanded(
-            child: Column(
+      child: isNarrowPhone
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: AppTheme.headingMedium.copyWith(
-                    color: Colors.white,
-                    fontSize: isCompact ? 19 : AppTheme.headingMedium.fontSize,
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    defaultLeading,
+                    if (trailing != null) ...[
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.topRight,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerRight,
+                            child: trailing!,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-                SizedBox(height: isCompact ? 6 : 8),
-                Text(
-                  subtitle,
-                  style: AppTheme.bodyMedium.copyWith(
-                    color: Colors.white.withValues(alpha: 0.86),
+                const SizedBox(height: 14),
+                textBlock,
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                defaultLeading,
+                SizedBox(width: isCompact ? 12 : 16),
+                Expanded(child: textBlock),
+                if (trailing != null) ...[
+                  SizedBox(width: isCompact ? 8 : 12),
+                  Flexible(
+                    child: Align(
+                      alignment: Alignment.topRight,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerRight,
+                        child: trailing!,
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
-          ),
-          if (trailing != null) ...[
-            SizedBox(width: isCompact ? 8 : 12),
-            trailing!,
-          ],
-        ],
-      ),
     );
   }
 }
