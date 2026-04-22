@@ -35,21 +35,21 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # ✅ Do not fail pipeline for warnings
-      - name: Verify formatting and analyze
+      # Do not fail on warnings
+      - name: Analyze project
         run: flutter analyze || true
 
-      - name: Build release APK
-        run: flutter build apk --release
+      # Build APK
+      - name: Build APK
+        run: |
+          flutter build apk --release
+          echo "Searching for APK..."
+          find . -name "*.apk"
 
-      # ✅ Debug: confirm APK exists
-      - name: Check APK exists
-        run: ls -R build/app/outputs/flutter-apk
-
-      # ✅ FIXED upload (more reliable)
+      # Upload APK (AUTO DETECT PATH)
       - name: Upload APK to Release
         uses: ncipollo/release-action@v1
         with:
-          artifacts: build/app/outputs/flutter-apk/app-release.apk
+          artifacts: "**/*.apk"
           tag: ${{ github.ref_name }}
           generateReleaseNotes: true
