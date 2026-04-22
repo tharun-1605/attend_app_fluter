@@ -35,17 +35,21 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # ✅ FIX: Do not fail on warnings
+      # ✅ Do not fail pipeline for warnings
       - name: Verify formatting and analyze
         run: flutter analyze || true
 
       - name: Build release APK
         run: flutter build apk --release
 
-      - name: Upload Release APK
-        uses: softprops/action-gh-release@v2
+      # ✅ Debug: confirm APK exists
+      - name: Check APK exists
+        run: ls -R build/app/outputs/flutter-apk
+
+      # ✅ FIXED upload (more reliable)
+      - name: Upload APK to Release
+        uses: ncipollo/release-action@v1
         with:
-          files: build/app/outputs/flutter-apk/app-release.apk
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: build/app/outputs/flutter-apk/app-release.apk
+          tag: ${{ github.ref_name }}
+          generateReleaseNotes: true
