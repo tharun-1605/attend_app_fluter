@@ -284,64 +284,36 @@ class _FaceRegisterScreenState extends State<FaceRegisterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Register Face')),
-      body: _isInitializing
-          ? Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: Stack(
-                    children: [
-                      if (_cameraController != null &&
-                          _cameraController!.value.isInitialized)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
-                          child: CameraPreview(_cameraController!),
-                        ),
-                      // Face frame overlay
-                      Center(
-                        child: Container(
-                          width: 250,
-                          height: 300,
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: _faceDetected
-                                  ? AppTheme.successColor
-                                  : Colors.white,
-                              width: 3,
-                            ),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      Text(
-                        _statusMessage,
-                        style: AppTheme.bodyMedium,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 10),
-                      LinearProgressIndicator(
-                        value: _imageCount / 5,
-                        backgroundColor: Colors.grey[300],
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        '$_imageCount/5 photos captured',
-                        style: AppTheme.bodySmall,
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          if (_imageCount > 0)
-                            OutlinedButton(
+      bottomNavigationBar: _isInitializing
+          ? null
+          : SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _statusMessage,
+                      style: AppTheme.bodyMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 10),
+                    LinearProgressIndicator(
+                      value: _imageCount / 5,
+                      backgroundColor: Colors.grey[300],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      '$_imageCount/5 photos captured',
+                      style: AppTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        if (_imageCount > 0) ...[
+                          Expanded(
+                            child: OutlinedButton(
                               onPressed: () {
                                 setState(() {
                                   _imageCount = 0;
@@ -352,19 +324,71 @@ class _FaceRegisterScreenState extends State<FaceRegisterScreen> {
                               },
                               child: const Text('Reset'),
                             ),
-                          ElevatedButton.icon(
+                          ),
+                          const SizedBox(width: 12),
+                        ],
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton.icon(
                             onPressed: _faceDetected && _imageCount < 5
                                 ? _captureImage
                                 : null,
-                            icon: const Icon(Icons.camera),
-                            label: const Text('Capture'),
+                            icon: const Icon(Icons.camera_alt_rounded),
+                            label: Text(
+                              _imageCount == 0
+                                  ? 'Capture Photo'
+                                  : 'Capture Next',
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+      body: _isInitializing
+          ? const Center(child: CircularProgressIndicator())
+          : SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (_cameraController != null &&
+                              _cameraController!.value.isInitialized)
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: CameraPreview(_cameraController!),
+                            ),
+                          Center(
+                            child: Container(
+                              width: 250,
+                              height: 300,
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: _faceDetected
+                                      ? AppTheme.successColor
+                                      : Colors.white,
+                                  width: 3,
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
                           ),
                         ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
     );
   }
